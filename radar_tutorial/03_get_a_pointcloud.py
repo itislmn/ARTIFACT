@@ -9,7 +9,7 @@ You're just reading text-like commands to configure it, then reading its
 answer.
 
 Run it:
-    python 03_get_a_pointcloud.py --cli COM4 --data COM5 --cfg your_profile.cfg --seconds 15
+    python 03_get_a_pointcloud.py --cli COM4 --data COM5 --cfg your_profile.cfg --seconds 30
 
 WHAT'S HAPPENING UNDER THE HOOD:
 1. We open COM4 and type the same commands you'd type by hand in a
@@ -94,8 +94,8 @@ def main():
     ap.add_argument("--cli", required=True)
     ap.add_argument("--data", required=True)
     ap.add_argument("--cfg", required=True)
-    ap.add_argument("--seconds", type=float, default=15.0)
-    ap.add_argument("--databaud", type=int, default=921600)
+    ap.add_argument("--seconds", type=float, default=30)
+    ap.add_argument("--databaud", type=int, default=3125000)
     args = ap.parse_args()
 
     import os
@@ -106,7 +106,7 @@ def main():
 
     if not points:
         print("\nNo point-cloud frames parsed. Common reasons: wrong --databaud")
-        print("(try --databaud 115200), or the .cfg doesn't match the flashed demo.")
+        print("(try --scanbaud (usually 3125000), or the .cfg doesn't match the flashed demo.")
         return
 
     allp = np.vstack(points)

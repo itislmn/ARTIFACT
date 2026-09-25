@@ -116,7 +116,7 @@ def main():
     ap.add_argument("--databaud", type=int, default=921600)
     ap.add_argument("--scanbaud", action="store_true")
     ap.add_argument("--seconds", type=float, default=30.0)
-    ap.add_argument("--out", default="uart_capture.npz")
+    ap.add_argument("--out", default="captures/uart_capture.npz")
     ap.add_argument("--noplot", action="store_true")
     args = ap.parse_args()
 

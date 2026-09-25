@@ -1,7 +1,7 @@
 # radar_tutorial — learn your AWR2944P + DCA1000 setup, one idea at a time
 
 Each file below is a standalone lesson. Open it, read the comments top to
-bottom BEFORE running it — they're written like I'm sitting next to you
+bottom and then run it. They're written like I'm sitting next to you
 explaining what you're about to see. Then run it. Then go look at what it
 saved in `output/<lesson_name>/`.
 
@@ -24,11 +24,3 @@ run any script with `--help` to see exactly what it wants.
 | 09 | `09_doppler_and_range_doppler_map.py` | No (uses 07's file) | The second FFT: velocity |
 | 10 | `10_cfar_detection.py` | No (uses 09's file) | Automatically finding real targets in the map |
 | 11 | `11_realtime_loop_skeleton.py` | Yes | Putting 06+07+08+09+10 into one live loop — the seed of active sensing |
-
-**The honest ugly bits**, called out explicitly rather than hidden:
-- Lesson 05's exact packet-header byte layout is community-reverse-engineered,
-  not from an official spec I could verify — it worked on your hardware, but
-  say so if you ever present it as gospel.
-- Lesson 09 will very likely show you a real, known TDM-MIMO artifact
-  (energy pinned at the edges of the velocity axis) rather than a clean
-  moving target. That's explained in the file itself, not swept under the rug.

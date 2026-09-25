@@ -4,7 +4,7 @@ LESSON 01 — Is anything even there?
 Before you configure a single chirp, you need to know two independent
 things work: the sensor chip talks over a serial (UART) connection, and
 the DCA1000 talks over Ethernet (UDP). This lesson checks both, and
-explains exactly what "checking" means at this level - we are not asking
+explains exactly what "checking" means at this level. We are not asking
 the radar to sense anything yet. We are asking two pieces of silicon
 "are you powered on and listening."
 
@@ -13,7 +13,7 @@ Run it:
 
 WHAT YOU'RE ABOUT TO SEE:
 For the sensor: we just open the COM port. There's no magic "ping" command
-for a UART - if the port opens without error, the USB/driver layer is fine.
+for a UART. If the port opens without error, the USB/driver layer is fine.
 Whether the CHIP behind it is doing anything useful is a separate question
 we can't answer until it's flashed with real firmware (see the main
 RUNBOOK.md from your first setup night if you haven't flashed yet).

@@ -33,6 +33,7 @@ import serial
 
 MAGIC = b"\x02\x01\x04\x03\x06\x05\x08\x07"
 OUT_DIR = "output/03_get_a_pointcloud"
+COMMON_BAUDS = [921600, 1250000, 115200, 852272, 3125000]
 
 
 def send_cfg(cli_port, cfg_path, baud=115200):
@@ -88,6 +89,24 @@ def read_points(data_port, seconds, baud=921600):
             buf = buf[total_len:]
     return all_points
 
+def scan_baud(data_port, seconds=2.0):
+    print("Scanning for the data-port baud rate...")
+    for b in COMMON_BAUDS:
+        try:
+            with serial.Serial(data_port, b, timeout=0.2) as ser:
+                t0 = time.time()
+                buf = b""
+                while time.time() - t0 < seconds:
+                    buf += ser.read(4096)
+                    if MAGIC in buf:
+                        print(f"  MAGIC WORD FOUND at {b} baud.")
+                        return b
+        except serial.SerialException as e:
+            print(f"  {b}: {e}")
+    print("  No magic word at any common baud. Is the OOB demo actually running?")
+    print("  Open the CLI port in a terminal at 115200, press NRST, and look for SBL logs.")
+    return None
+
 
 def main():
     ap = argparse.ArgumentParser()
@@ -96,6 +115,7 @@ def main():
     ap.add_argument("--cfg", required=True)
     ap.add_argument("--seconds", type=float, default=30)
     ap.add_argument("--databaud", type=int, default=3125000)
+    ap.add_argument("--scanbaud", action="store_true")
     args = ap.parse_args()
 
     import os
@@ -107,6 +127,12 @@ def main():
     if not points:
         print("\nNo point-cloud frames parsed. Common reasons: wrong --databaud")
         print("(try --scanbaud (usually 3125000), or the .cfg doesn't match the flashed demo.")
+        return
+
+    databaud = scan_baud(args.data) if args.scanbaud else args.databaud
+    if databaud is None:
+        print("Still no magic word even after sensorStart. See troubleshooting")
+        print("notes below before giving up - this is very fixable.")
         return
 
     allp = np.vstack(points)

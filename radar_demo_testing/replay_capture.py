@@ -7,7 +7,7 @@ View it live on screen:
 
 Save it as a video file you can play anywhere (no Python needed to show it -
 this is the safest option for a meeting room with an unfamiliar projector):
-    python replay_capture.py uart_capture.npz --save replay.mp4
+    python replay_capture.py uart_capture.npz --save captures/replay.mp4
 
 If you don't have ffmpeg installed, it automatically falls back to a .gif:
     python replay_capture.py uart_capture.npz --save replay.gif

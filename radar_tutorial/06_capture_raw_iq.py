@@ -87,7 +87,8 @@ def send_sensor_config(cli_port, cfg_path):
                 continue
             ser.write((line + "\n").encode())
             time.sleep(0.05)
-            ser.read(300)  # we're not printing every line here, lesson 03 already showed that
+            reply = ser.read(300).decode(errors="ignore") # we're not printing every line here, lesson 03 already showed that
+            print(f"  > {line[:45]:45s} | {'Done' if 'Done' in reply else reply.strip()[:40]}")
 
 
 def receive(seconds, out_path):

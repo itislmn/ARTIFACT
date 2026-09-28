@@ -42,7 +42,7 @@ def parse_cfg(path):
             p["numLoops"] = int(v[2])
         elif k == "channelCfg":
             p["rxMask"] = int(v[0])
-        elif k == "adcCfg":
+        elif k == "adcbufCfg":
             p["isComplex"] = int(v[1]) != 0
         elif k == "chirpCfg":
             p["chirpTx"][int(v[0])] = int(v[7])

@@ -149,7 +149,7 @@ def main():
     print(f"\nThat's {raw.size:,} individual int16 numbers.")
     print(f"Value range seen: {raw.min()} to {raw.max()} "
           f"(int16 can go from -32768 to 32767)")
-    print("If your adcCfg used COMPLEX mode, these numbers come in groups of")
+    print("If your adcbufCfg used COMPLEX mode, these numbers come in groups of")
     print("4 per pair of samples: [I0, I1, Q0, Q1] - lesson 07 handles the")
     print("reassembly into real I+jQ complex numbers automatically.")
     print(f"\nNEXT: python 07_build_and_explore_cube.py --bin {out_bin} --cfg {args.cfg}")

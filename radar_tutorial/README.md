@@ -106,7 +106,7 @@ source), which is a genuinely useful skill beyond just this one project.
 ## Relationship to your other project folders
 
 - `pattern_measurement/` (antenna/radome pattern sweep tooling) and any
-  earlier DOA (direction-of-arrival) project you built are the
+  earlier DOA (direction-of-arrival) project built are the
   **applied, production version** of what lessons 06/08 teach in
   simplified/illustrative form. If you still have that DOA project's
   geometry-parsing code, it's the authoritative source for this exact

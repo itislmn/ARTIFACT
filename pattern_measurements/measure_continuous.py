@@ -274,6 +274,7 @@ def main():
     ap.add_argument("--cli", required=True)
     ap.add_argument("--cfg", required=True)
     ap.add_argument("--cut", required=True, choices=["azimuth", "elevation"])
+    ap.add_argument("--tag", default="", help="label for this data set (e.g. air, pla, petg): every file gets it in its name, so different radomes/setups never mix or overwrite each other")
     ap.add_argument("--range-m", type=float, required=True,
                     help="Nominal target distance (tape measure); the search window allows +/-35 cm.")
     ap.add_argument("--start", type=float, default=-90)
@@ -296,6 +297,8 @@ def main():
     args = ap.parse_args()
 
     os.makedirs(OUT_DIR, exist_ok=True)
+    name = args.cut + (f"_{args.tag}" if args.tag else "")      # file stem
+    tagopt = f" --tag {args.tag}" if args.tag else ""
     if args.waypoints:
         waypoints = [float(x) for x in args.waypoints.split(",")]
     else:
@@ -322,7 +325,7 @@ def main():
     frame_bytes = 2 * p["numAdcSamples"] * p["numRx"] * p["chirpsPerFrame"]
     active_s = p["chirpsPerFrame"] * (p["idleTime_us"] + p["rampEndTime_us"]) * 1e-6
     bin_path = os.path.join(OUT_DIR, "_continuous_capture.bin")
-    bg_path = os.path.join(OUT_DIR, f"{args.cut}_background_continuous.npy")
+    bg_path = os.path.join(OUT_DIR, f"{name}_background_continuous.npy")
     print(f"Frame = {p['numLoops']} loops x {p['numTx']} TX = {p['chirpsPerFrame']} chirps, "
           f"{frame_bytes/1e3:.0f} kB; active time {active_s*1e3:.1f} ms per frame.\n")
 
@@ -425,7 +428,7 @@ def main():
         print("!! WARNING: after subtracting the empty-scene reference almost nothing is left at the")
         print("   target range. The reference probably already contained the target, so the")
         print("   subtraction may have erased the REAL signal. Re-record it with the target truly")
-        print(f"   removed, or plot the un-subtracted numbers:  python plot_pattern.py --cut {args.cut} --use raw")
+        print(f"   removed, or plot the un-subtracted numbers:  python plot_pattern.py --cut {args.cut}{tagopt} --use raw")
 
     # Frame time relative to GO (sensorStart), referred to the CENTRE of the frame's active time.
     n = Xs.shape[0]
@@ -435,7 +438,7 @@ def main():
 
     # The raw recording (everything measured, no angles yet) is ALWAYS saved: with it the angles
     # can be assigned - or changed - at any time with assign_angles.py.
-    raw_path = os.path.join(OUT_DIR, f"{args.cut}_continuous_raw.npz")
+    raw_path = os.path.join(OUT_DIR, f"{name}_continuous_raw.npz")
     np.savez_compressed(raw_path, frame_time_rel=t_rel, gains=res["gains"], gains_raw=res["gains_raw"],
                         noise=res["noise"], bins=res["bins"], range_m=ra[res["bins"]],
                         numRx=p["numRx"], bg_subtracted=B is not None, run_id=run_id,
@@ -443,12 +446,12 @@ def main():
     print(f"Recording saved to {raw_path} (run id {run_id}).")
     run = {"run_id": run_id, "numRx": p["numRx"], "gains": res["gains"], "gains_raw": res["gains_raw"],
            "noise": res["noise"], "range_m": ra[res["bins"]], "bg_subtracted": B is not None}
-    log_path = os.path.join(OUT_DIR, f"{args.cut}_measurements.json")
+    log_path = os.path.join(OUT_DIR, f"{name}_measurements.json")
 
     if args.mark_later:
         print(f"Recorded {t_rel[-1]:.1f} s. No angles assigned yet. Next:")
-        print(f"  python assign_angles.py --cut {args.cut} --show      (level over time)")
-        print(f"  python assign_angles.py --cut {args.cut} --marks \"0:-90, 15:0, 30:90\"   "
+        print(f"  python assign_angles.py --cut {args.cut}{tagopt} --show      (level over time)")
+        print(f"  python assign_angles.py --cut {args.cut}{tagopt} --marks \"0:-90, 15:0, 30:90\"   "
               "(your TIME:ANGLE marks)")
         return
 
@@ -459,7 +462,7 @@ def main():
           f"{(~inside).sum()} more are held at the end angles.")
     added, replaced, total = write_log(run, ang, np.ones(n, bool), log_path)
     print(f"Appended {added} readings to {log_path} ({total} total).")
-    print(f"\nNow run:  python plot_pattern.py --cut {args.cut}")
+    print(f"\nNow run:  python plot_pattern.py --cut {args.cut}{tagopt}")
 
 
 if __name__ == "__main__":

@@ -83,6 +83,7 @@ def main():
     ap.add_argument("--cli", required=True)
     ap.add_argument("--cfg", required=True)
     ap.add_argument("--cut", required=True, choices=["azimuth", "elevation"])
+    ap.add_argument("--tag", default="", help="label for this data set (e.g. air, pla, petg): every file gets it in its name, so different radomes/setups never mix or overwrite each other")
     ap.add_argument("--range-m", type=float, required=True,
                     help="Nominal target distance (tape measure). The real peak may "
                          "sit a few cm to ~20 cm away from this; the search window allows for it.")
@@ -105,6 +106,7 @@ def main():
     args = ap.parse_args()
 
     os.makedirs(OUT_DIR, exist_ok=True)
+    name = args.cut + (f"_{args.tag}" if args.tag else "")      # file stem
 
     print("Checking DCA1000 is reachable before asking you to move anything...")
     try:
@@ -122,7 +124,7 @@ def main():
         print("For a usable elevation cut try: --start -10 --stop 10 --step 1\n")
 
     bin_path = os.path.join(OUT_DIR, "_last_capture.bin")
-    bg_path = os.path.join(OUT_DIR, f"{args.cut}_background.npy")
+    bg_path = os.path.join(OUT_DIR, f"{name}_background.npy")
 
     # ---------------- empty-room background ----------------
     B = None
@@ -148,7 +150,7 @@ def main():
         print("especially at wide angles. Re-run with --background for clean results.\n")
 
     angles = np.arange(args.start, args.stop + 1e-9, args.step)
-    log_path = os.path.join(OUT_DIR, f"{args.cut}_measurements.json")
+    log_path = os.path.join(OUT_DIR, f"{name}_measurements.json")
     log = json.load(open(log_path)) if os.path.exists(log_path) else []
 
     print(f"Pivot point: mark a spot exactly {args.range_m} m in front of the radar's")
@@ -210,7 +212,7 @@ def main():
                 print("     The reference probably already contained the target (or a return at that")
                 print("     range), so the subtraction may be erasing the REAL signal. Re-record it")
                 print("     with the target truly removed - or plot the un-subtracted numbers, which")
-                print("     are stored too:  python plot_pattern.py --cut " + args.cut + " --use raw")
+                print("     are stored too:  python plot_pattern.py --cut " + args.cut + (f" --tag {args.tag}" if args.tag else "") + " --use raw")
 
         for ch in range(gains.shape[0]):
             tx, rx = ch // p["numRx"], ch % p["numRx"]
@@ -226,7 +228,7 @@ def main():
         print(f"  -> logged. Total readings for this cut so far: {len(log)}")
 
     print("\nSweep complete. Now run:")
-    print(f"  python plot_pattern.py --cut {args.cut}")
+    print(f"  python plot_pattern.py --cut {args.cut}" + (f" --tag {args.tag}" if args.tag else ""))
 
 
 if __name__ == "__main__":

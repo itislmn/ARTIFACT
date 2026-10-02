@@ -43,6 +43,7 @@ RX_COLORS = ["red", "green", "blue", "cyan"]      # RX1..RX4
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--cut", required=True, choices=["azimuth", "elevation"])
+    ap.add_argument("--tag", default="", help="label for this data set (e.g. air, pla, petg): every file gets it in its name, so different radomes/setups never mix or overwrite each other")
     ap.add_argument("--use", choices=["clean", "raw"], default="clean")
     ap.add_argument("--noise-correct", action="store_true")
     ap.add_argument("--connect", action="store_true")
@@ -51,7 +52,8 @@ def main():
                     help="marker size (default 4, or 3 for very dense logs)")
     args = ap.parse_args()
 
-    log_path = os.path.join(OUT_DIR, f"{args.cut}_measurements.json")
+    name = args.cut + (f"_{args.tag}" if args.tag else "")      # file stem
+    log_path = os.path.join(OUT_DIR, f"{name}_measurements.json")
     if not os.path.exists(log_path):
         print(f"No measurements yet at {log_path} - run measure_interactive.py or "
               "measure_continuous.py first.")
@@ -139,7 +141,7 @@ def main():
     fig.tight_layout()
 
     os.makedirs(OUT_DIR, exist_ok=True)
-    out_pdf = os.path.join(OUT_DIR, f"pattern_{args.cut}.pdf")
+    out_pdf = os.path.join(OUT_DIR, f"pattern_{name}.pdf")
     fig.savefig(out_pdf, format="pdf")
     fig.savefig(out_pdf.replace(".pdf", ".png"), dpi=200)
     print(f"Saved {out_pdf} (+ .png)")

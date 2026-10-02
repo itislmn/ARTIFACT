@@ -131,6 +131,7 @@ def show(run):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--cut", required=True, choices=["azimuth", "elevation"])
+    ap.add_argument("--tag", default="", help="label for this data set (e.g. air, pla, petg): every file gets it in its name, so different radomes/setups never mix or overwrite each other")
     ap.add_argument("--marks", type=str, default=None, help='"time_s:angle_deg, ..." e.g. "0:-90, 15:0, 30:90"')
     ap.add_argument("--marks-file", type=str, default=None)
     ap.add_argument("--run", type=str, default=None,
@@ -140,7 +141,9 @@ def main():
     ap.add_argument("--show", action="store_true", help="only show the recording's level over time")
     args = ap.parse_args()
 
-    run_path = args.run or os.path.join(OUT_DIR, f"{args.cut}_continuous_raw.npz")
+    name = args.cut + (f"_{args.tag}" if args.tag else "")      # file stem
+    tagopt = f" --tag {args.tag}" if args.tag else ""
+    run_path = args.run or os.path.join(OUT_DIR, f"{name}_continuous_raw.npz")
     if not os.path.exists(run_path):
         print(f"No recording at {run_path} - run measure_continuous.py first.")
         sys.exit(1)
@@ -177,12 +180,12 @@ def main():
         span = ma.max() - ma.min()
         print(f"Density: {inside.sum() / max(span, 1e-9):.1f} frames per degree over {span:g} deg.")
 
-    log_path = os.path.join(OUT_DIR, f"{args.cut}_measurements.json")
+    log_path = os.path.join(OUT_DIR, f"{name}_measurements.json")
     added, replaced, total = write_log(run, ang, keep, log_path)
     print(f"Added {added} readings to {log_path}"
           + (f" (replaced {replaced} older readings of this recording)" if replaced else "")
           + f"; {total} in total.")
-    print(f"\nNow run:  python plot_pattern.py --cut {args.cut}")
+    print(f"\nNow run:  python plot_pattern.py --cut {args.cut}{tagopt}")
 
 
 if __name__ == "__main__":

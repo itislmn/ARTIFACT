@@ -1,7 +1,7 @@
 """
 split_runs.py - recover separate data sets from a log in which several measurements
 were APPENDED together (the measurement scripts always append to
-output/<cut>[_tag]_measurements.json - that is what merged your air / PLA / PETG runs).
+output/<cut>[_tag]_measurements.json (merged).
 
     python split_runs.py --cut azimuth                      # only list the runs it finds
     python split_runs.py --cut azimuth --assign 1=air,2=pla,3=petg   # write one file per run

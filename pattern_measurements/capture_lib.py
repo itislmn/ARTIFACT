@@ -1,17 +1,8 @@
 """
-capture_lib.py — rebuilt, with the status-byte bug fixed.
+capture_lib.py - arms the DCA1000 over UDP (status in reply bytes 4-5), sends the .cfg over UART with quiet-period
+reading, receives the raw stream and builds the real-ADC cube with the TX firing order undone.
 
-BUG THAT WAS HERE: the DCA1000's reply to every command is exactly 8 bytes:
-    0xA55A (2B header) | cmd echo (2B) | status (2B) | 0xEEAA (2B footer)
-The previous version read status from resp[6:8] - that's actually the
-FOOTER (0xEEAA = 61098 as an int), not the status field. So every
-successful command was being misreported as "ERROR status=61098". The
-DCA1000 was working the entire time; only the status check was wrong.
-Fixed below: status is resp[4:6].
-
-Uses REAL ADC sampling (matches pattern_awr2944P.cfg's adcCfg 2 0) - this
-is the TI-confirmed correct format for AWR2944-family raw DCA1000 capture
-in TDM mode. The range FFT of this real data is still fully complex.
+    from capture_lib import capture_once, load_complex_cube, parse_cfg
 """
 import re
 import socket
@@ -40,10 +31,6 @@ def _log(msg):
 
 
 def _parse_response_status(resp, name):
-    """resp layout: 0xA55A(2) | cmd_echo(2) | status(2) | 0xEEAA(2) = 8 bytes
-    total for a plain ack. READ_FPGA_VERSION and similar queries return
-    extra data BEFORE the footer, so we read status right after the cmd
-    echo, not by counting back from the end."""
     if len(resp) < 8:
         raise CaptureError(f"{name}: reply too short ({len(resp)} bytes) to parse")
     status = struct.unpack("<H", resp[4:6])[0]
@@ -51,9 +38,6 @@ def _parse_response_status(resp, name):
 
 
 def preflight_check():
-    """Cheap, fast check BEFORE attempting a real capture: is the DCA1000
-    even reachable right now? Catches network/power problems in under a
-    second instead of after a full failed capture attempt."""
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     sock.settimeout(2.0)
@@ -112,14 +96,6 @@ def parse_cfg(path):
     slope = p["slope_MHz_us"] * 1e12
     p["range_axis"] = np.arange(N) * (2.99792458e8 * fs) / (2 * slope * N)
 
-    # BUG FOUND IN YOUR ACTUAL .cfg: the chirps fire in this order within
-    # each loop -> chirp0=TX0(mask 1), chirp1=TX2(mask 4), chirp2=TX3(mask 8),
-    # chirp3=TX1(mask 2). That is NOT ascending TX order. The old code just
-    # took the chirp-firing-slot index (0,1,2,3) and called it "tx" directly,
-    # so everything labeled "TX2" in earlier plots was actually physical TX3,
-    # and "TX3" was actually physical TX1, etc. tx_reorder below is the
-    # permutation that un-scrambles this: tx_reorder[physical_tx_id] =
-    # firing_slot_index. load_complex_cube() applies it before labeling.
     perm = [None] * p["numTx"]
     for chirp_idx, mask in p["chirpTx"].items():
         if not mask:
@@ -170,7 +146,6 @@ def arm_dca1000(lvds_lanes=4, verbose=True, timer=30):
     cmd("RESET_FPGA", RESET_FPGA)
     time.sleep(0.5)
     lvds_code = 1 if lvds_lanes == 4 else 2
-    # raw(1), lvds_lanes, LVDS capture(1), Ethernet stream(2), 16-bit(3), timer (default 30, as before)
     cmd("CONFIG_FPGA_GEN", CONFIG_FPGA_GEN, bytes([1, lvds_code, 1, 2, 3, timer]))
     cmd("CONFIG_PACKET_DATA", CONFIG_PACKET_DATA, struct.pack("<HHH", 1466, 25, 0))
     cmd("RECORD_START", RECORD_START)
@@ -201,23 +176,11 @@ def force_sensor_stop(cli_port, baud=115200):
 
 
 def _read_reply(ser, quiet_after=0.15, max_wait=2.0):
-    """Read until the line goes quiet for `quiet_after` seconds, instead of
-    always blocking for the full port timeout.
-
-    BUG THIS REPLACES: ser.read(400) with timeout=1 does NOT return as soon
-    as the device's short reply ("Done\\r\\n") arrives - pyserial keeps
-    trying to fill all 400 bytes and only gives up once the FULL 1-second
-    timeout elapses. With ~30 .cfg lines that turned "send the config" into
-    a ~30 second operation, while the DCA1000 receive window (a few
-    seconds) had already closed and stopped listening long before
-    sensorStart was ever sent. That silent mismatch, not the sensor or the
-    network, was why captures kept coming back with 0 packets.
-    """
     buf = b""
     t0 = time.time()
     last_data_t = t0
     while time.time() - t0 < max_wait:
-        chunk = ser.read(256)   # ser's own per-call timeout should be SHORT (see below)
+        chunk = ser.read(256)
         if chunk:
             buf += chunk
             last_data_t = time.time()
@@ -227,12 +190,7 @@ def _read_reply(ser, quiet_after=0.15, max_wait=2.0):
 
 
 def send_sensor_config(cli_port, cfg_path, baud=115200, strict=True):
-    """strict=True: ABORT immediately if any line errors, instead of
-    plowing ahead with a chip left in an unknown, possibly stale state."""
     import serial
-    # NOTE: port timeout is now short (0.05s per low-level read attempt) -
-    # _read_reply() does its own accumulate-until-quiet loop on top of that,
-    # so a line that replies in 10ms finishes in ~150ms, not ~1000ms.
     with serial.Serial(cli_port, baud, timeout=0.05) as ser:
         ser.write(b"\n")
         time.sleep(0.2)
@@ -294,9 +252,6 @@ def receive_raw(seconds, out_path, min_expected_bytes=10_000):
 
 
 def capture_once(cli_port, cfg_path, seconds, out_bin, lvds_lanes=4, strict=True):
-    """The full sequence, in order, each step logged. Raises CaptureError
-    with a specific, actionable message the moment anything goes wrong,
-    rather than silently producing 0 bytes at the very end."""
     p = parse_cfg(cfg_path)
     force_sensor_stop(cli_port)
     dca_sock = arm_dca1000(lvds_lanes)
@@ -305,10 +260,6 @@ def capture_once(cli_port, cfg_path, seconds, out_bin, lvds_lanes=4, strict=True
         result = {}
         def _go():
             try:
-                # Padding covers config-send time (~5s measured for a full
-                # 30-line .cfg after the timing fix above) plus slack, so the
-                # receive window comfortably outlasts sensorStart actually
-                # being sent, instead of closing before it as it did before.
                 result["bytes"] = receive_raw(seconds + 10, out_bin)
             except CaptureError as e:
                 result["error"] = e
@@ -326,9 +277,6 @@ def capture_once(cli_port, cfg_path, seconds, out_bin, lvds_lanes=4, strict=True
 
 
 def load_complex_cube(bin_path, p):
-    """Reshape into (frames, chirps_per_tx, virtual_rx, samples), complex.
-    p['isComplex'] should be False for AWR2944-family raw capture - the
-    real branch below is the one that actually gets used."""
     raw = np.fromfile(bin_path, dtype=np.int16)
     if p["isComplex"]:
         quads = raw.reshape(-1, 4)
@@ -346,10 +294,6 @@ def load_complex_cube(bin_path, p):
         n_frames, p["chirpsPerFrame"], p["numRx"], p["numAdcSamples"])
     if p["numTx"] > 1:
         cube = cube.reshape(n_frames, -1, p["numTx"], p["numRx"], p["numAdcSamples"])
-        # Un-scramble firing order -> physical TX id (see parse_cfg). Without
-        # this, axis index 0..3 here is "which chirp slot fired", not "which
-        # TX antenna" - they only coincide by accident when chirpCfg happens
-        # to list TX in ascending order, which this .cfg does NOT do.
         cube = cube[:, :, p["tx_reorder"], :, :]
         cube = cube.reshape(n_frames, -1, p["numTx"] * p["numRx"], p["numAdcSamples"])
     return cube

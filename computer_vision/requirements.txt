@@ -1,0 +1,9 @@
+numpy>=2.0       # arrays and FFTs
+scipy>=1.10      # signal processing, statistics, assignment
+matplotlib>=3.7  # figures
+pyserial>=3.5    # radar CLI over UART
+pillow>=10       # images and fonts
+psutil>=5.9      # process priority and resources
+pygrabber>=0.2   # camera on Windows (DirectShow)
+comtypes>=1.2    # camera on Windows (DirectShow)
+# figures: a LaTeX installation (TeX Live) for the text; videos: ffmpeg

@@ -1,0 +1,4 @@
+# raw captures are hundreds of MB each - keep them out of git
+*.bin
+*.npy
+*.npz

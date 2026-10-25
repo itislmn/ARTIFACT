@@ -1,0 +1,6 @@
+{
+  "about": "Antenna feed points of the AWR2944 EVM (PROC113D) from TI's layout database SPRR441 (PROC113D_ASCII.PcbDoc, top layer, nets RX1-RX4 and TX1-TX4 = device RX0-RX3 and TX0-TX3), relative to RX0 and the main antenna row; x along the azimuth array, z up. Identical antenna elements, so the feed-point differences are the phase-centre differences.",
+  "rx_x_mm": [0.0, 1.8999, 3.7999, 5.7002],
+  "tx_x_mm": [0.0, 3.9180, 7.8369, 15.6741],
+  "tx_z_mm": [0.0, 3.1349, 0.0, 0.0]
+}

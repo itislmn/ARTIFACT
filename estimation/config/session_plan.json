@@ -1,0 +1,207 @@
+{
+  "about": "Session plan (all reflectors within 2 m): one take = 20 frames (2 s). Record with  python -m core.capture --cli COM4 --session S1 --plan data/session_plan.json --name <name> [--target 'R:theta:label' ...]  The targets below are PLANNED positions: pass the MEASURED ones with --target, or correct data/raw/<session>/<name>.json before running run_experiment.py. Angles: positive = to the right seen from the radar; R from the EVM front-face centre to the reflector apex. Heights: antenna_height_m = centre of the antenna area, apex_height_m = apex of each reflector, both from the floor; the capture tool turns them into z = apex - antenna and stores the 3-D range, angle and elevation (core/truth.py). After correcting a height here: python -m core.capture --session S1 --plan data/session_plan.json --update-truth",
+  "antenna_height_m": 0.38,
+  "geometry": {
+    "about": "room S1/S2 in radar coordinates (x along the boresight, y sideways, + = right), metres; approximate (tape)",
+    "rail_y_m": [-0.55, -0.44],
+    "right_wall_y_m": 0.6,
+    "front_wall_x_m": 2.85,
+    "table_left_starts_x_m": 1.0
+  },
+  "reflectors": {
+    "big CR": {
+      "about": "large trihedral corner reflector (gold, 8 cm); the antenna centre is about 1 cm higher. Tape to the inner corner (apex). Session S2 only: taped at the front rim, apex 5 cm deeper (apex_depth_m 0.05 stored in the S2 take files)",
+      "apex_height_m": 0.37
+    },
+    "small CR 1": {
+      "about": "small trihedral on the HIGH stand",
+      "apex_height_m": 0.42
+    },
+    "small CR 2": {
+      "about": "small trihedral on the LOW stand (same size as 1)",
+      "apex_height_m": 0.27
+    }
+  },
+  "takes": [
+    {
+      "name": "empty",
+      "scenario": "background",
+      "targets": [],
+      "setup": "nothing in front of the radar: reflectors AND stands behind it; operator behind the radar",
+      "tests": "background subtraction (room, lane, walls, TX-RX leakage)"
+    },
+    {
+      "name": "null",
+      "scenario": "null",
+      "targets": [],
+      "setup": "the same empty scene, recorded again (nothing in front of the radar: reflectors AND stands behind it; operator behind the radar)",
+      "tests": "false alarms of every DoA and range method on real noise and clutter"
+    },
+    {
+      "name": "cal_0deg",
+      "scenario": "calibration",
+      "targets": [
+        {
+          "range_m": 2.0,
+          "azimuth_deg": 0.0,
+          "label": "big CR"
+        }
+      ],
+      "setup": "big CR at boresight, 2.0 m (in the strip in front of the radar)",
+      "tests": "channel calibration of the session"
+    },
+    {
+      "name": "single_m30",
+      "scenario": "single",
+      "targets": [
+        {
+          "range_m": 2.0,
+          "azimuth_deg": -30.0,
+          "label": "small CR 1"
+        }
+      ],
+      "setup": "small CR 1, 2.0 m, 30 deg left (beyond the lane)",
+      "tests": "single target; sign of the angle axis"
+    },
+    {
+      "name": "single_m45",
+      "scenario": "single",
+      "targets": [
+        {
+          "range_m": 1.8,
+          "azimuth_deg": -45.0,
+          "label": "small CR 1"
+        }
+      ],
+      "setup": "small CR 1, 1.8 m, 45 deg left (beyond the lane)",
+      "tests": "single target at a large angle (scale of the angle axis)"
+    },
+    {
+      "name": "single_p10",
+      "scenario": "single",
+      "targets": [
+        {
+          "range_m": 1.5,
+          "azimuth_deg": 10.0,
+          "label": "small CR 1"
+        }
+      ],
+      "setup": "small CR 1, 1.5 m, 10 deg RIGHT (y = +0.26 m; the right side is free to about 0.5-0.6 m)",
+      "tests": "single target at a positive angle (both sides of boresight)"
+    },
+    {
+      "name": "multi_doa",
+      "scenario": "multi",
+      "targets": [
+        {
+          "range_m": 1.5,
+          "azimuth_deg": -25.0,
+          "label": "small CR 1"
+        },
+        {
+          "range_m": 1.5,
+          "azimuth_deg": -2.0,
+          "label": "small CR 2"
+        }
+      ],
+      "setup": "two small CRs in ONE range gate: both 1.50 m (measure to 1 cm), 23 deg apart (one beyond the lane, one in the strip)",
+      "tests": "multi-target DoA: equal pair that only the angle can separate"
+    },
+    {
+      "name": "multi_strong_weak",
+      "scenario": "multi",
+      "targets": [
+        {
+          "range_m": 1.5,
+          "azimuth_deg": -28.0,
+          "label": "big CR"
+        },
+        {
+          "range_m": 1.5,
+          "azimuth_deg": -2.0,
+          "label": "small CR 1"
+        }
+      ],
+      "setup": "big CR (beyond the lane) and small CR 1 (in the strip), both 1.50 m",
+      "tests": "weak reflector next to a strong one (masking, calibration ghosts)"
+    },
+    {
+      "name": "multi_range",
+      "scenario": "multi",
+      "targets": [
+        {
+          "range_m": 1.25,
+          "azimuth_deg": 0.0,
+          "label": "small CR 1"
+        },
+        {
+          "range_m": 1.5,
+          "azimuth_deg": -25.0,
+          "label": "small CR 2"
+        },
+        {
+          "range_m": 2.0,
+          "azimuth_deg": -35.0,
+          "label": "big CR"
+        }
+      ],
+      "setup": "small CR 1 straight ahead (strip), small CR 2 (beyond the rail) and big CR on the left table section (x >= 1 m); 10-25 deg apart, none hides another",
+      "tests": "multi-target RANGE estimation (FFT vs CZT) and DoA across several range gates"
+    },
+    {
+      "name": "multi_range_close",
+      "scenario": "multi",
+      "targets": [
+        {
+          "range_m": 1.5,
+          "azimuth_deg": -25.0,
+          "label": "small CR 1"
+        },
+        {
+          "range_m": 1.67,
+          "azimuth_deg": -1.0,
+          "label": "small CR 2"
+        }
+      ],
+      "setup": "two small CRs 17 cm apart in range (2 range cells), 24 deg apart in angle",
+      "tests": "multi-target range RESOLUTION at 2 range cells (FFT bins vs CZT zoom); a static pair's resolution depends on its phase difference, shift one reflector by 1-2 cm for a second look"
+    },
+    {
+      "name": "multi_same_az",
+      "scenario": "multi",
+      "targets": [
+        {
+          "range_m": 1.5,
+          "azimuth_deg": 0.0,
+          "label": "small CR 2"
+        },
+        {
+          "range_m": 1.67,
+          "azimuth_deg": 0.0,
+          "label": "small CR 1"
+        }
+      ],
+      "setup": "SAME azimuth (0 deg): small CR 2 (low stand, 27 cm) in front at 1.50 m, small CR 1 (high stand, 42 cm) directly behind it at 1.67 m; the height difference keeps the rear one visible (check the sight line from behind the radar)",
+      "tests": "two reflectors that only RANGE can separate (2 range cells, identical angle): two detections, not one"
+    },
+    {
+      "name": "multi_close_az",
+      "scenario": "multi",
+      "targets": [
+        {
+          "range_m": 1.5,
+          "azimuth_deg": -2.0,
+          "label": "small CR 2"
+        },
+        {
+          "range_m": 1.5,
+          "azimuth_deg": 4.0,
+          "label": "small CR 1"
+        }
+      ],
+      "setup": "same range 1.50 m (measure both to 1 cm), 6 deg apart = 0.6 of the array resolution (9.6 deg); low and high stand side by side (about 16 cm apart)",
+      "tests": "two reflectors closer in angle than the array resolution (super-resolution): two detections, not one"
+    }
+  ],
+  "room": "S1/S2: metal rail (low, < 20 cm high) along the boresight, occupying y = -0.44 to -0.55 m; right side free to about 0.5-0.6 m, then the wall (strong static echo at y of about +0.7 m); corner about 2.85 m ahead. Free floor: beyond the rail (y <= -0.6 m) and the strip -0.15 m <= y <= +0.15 m in front of the radar, x <= 2.1 m. Evaluation region 0.5-2.5 m, y <= +0.45 m. Left of the lane the radar's L-shaped table starts only at x of about 1 m: no reflector at x < 1 m there."
+}

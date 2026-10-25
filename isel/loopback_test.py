@@ -1,7 +1,11 @@
+"""
+loopback_test.py - checks the serial cable alone: with RX and TX bridged, what is sent must come back.
+
+    python loopback_test.py
+"""
 import serial
 import time
 
-# Use the COM port you saw in Device Manager
 ser = serial.Serial('COM3', 9600, timeout=1)
 
 
@@ -9,13 +13,10 @@ def run_loopback_test():
     test_message = "@0v\r"
     print(f"Sending: {test_message.strip()}")
 
-    # Send the data
     ser.write(test_message.encode('ascii'))
 
-    # Wait a tiny bit for the electricity to travel
     time.sleep(0.1)
 
-    # Read what came back
     response = ser.read_all().decode('ascii')
 
     if response == test_message:

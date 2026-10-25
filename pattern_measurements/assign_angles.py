@@ -1,42 +1,8 @@
 """
-assign_angles.py - give the frames of a continuous sweep their ANGLES afterwards.
+assign_angles.py - gives every frame of a continuous sweep its angle afterwards, linearly interpolated between
+time:angle marks; the readings of a recording are replaced, never duplicated, in data/<cut>_<tag>_measurements.json.
 
-    1) record without pressing anything while sweeping:
-         python measure_continuous.py --cli COM4 --cfg pattern_awr2944P.cfg ^
-             --cut azimuth --range-m 0.30 --mark-later --background
-    2) look at the recording (and read off where the pattern peaks in time):
-         python assign_angles.py --cut azimuth --show
-    3) enter your marks - pairs  TIME_IN_SECONDS:ANGLE_IN_DEGREES  - and the log is written:
-         python assign_angles.py --cut azimuth --marks "0:-90, 6:-60, 15:0, 24:60, 30:90"
-       (or run it without --marks and it will ask; or put one "time angle" pair per
-        line in a text file and use --marks-file marks.txt)
-
-TIME reference: seconds since the "GO" line / the on-screen clock of measure_continuous.py
-started (the moment the radar started). Use a phone stopwatch started at GO, a video of
-the sweep, or simply the times the on-screen clock showed.
-
-No hardware is needed for this step; it can be re-run as often as you like with different
-marks - readings of the same recording are REPLACED in the log, not duplicated (each
-recording has a run id that is stored with its readings).
-
-HOW THE ANGLE OF A FRAME IS COMPUTED
-  Linear interpolation of your marks over time (np.interp). Between two marks the angle is
-  assumed to change at constant speed, so more marks = better (marks at every 30 deg keep the
-  error around a degree). The marks may go up and down (-90 -> +90 -> -90) as long as the
-  TIMES strictly increase.
-
-FRAMES OUTSIDE THE MARKS
-  Frames recorded before your first mark or after your last mark have no known angle (you
-  were not sweeping yet / any more), so by default they are NOT added to the log. With
-  --hold-ends they are kept and assigned the first/last mark's angle (useful when you waited
-  at the start position on purpose).
-
---time-shift S adds S seconds to every mark time (e.g. you started your stopwatch 0.4 s
-after GO -> --time-shift 0.4).
-
---show prints the strength of the target return over time (median over the 16 channels,
-0 dB = strongest frame). The main lobe of the antenna is where the target crosses boresight,
-so the time of the strongest frame is a good sanity check for your "0 deg" mark.
+    python assign_angles.py --cut azimuth --tag air --marks "0:-90, 15:0, 30:90"        (--show: the level over time)
 """
 import argparse
 import json
@@ -46,12 +12,10 @@ import sys
 
 import numpy as np
 
-OUT_DIR = "output"
+OUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
 
 
-# ----------------------------------------------------------------------
 def parse_marks(text):
-    """'0:-90, 6:-60, 15:0' or one 'time angle' pair per line -> (times, angles)."""
     pairs = []
     for part in re.split(r"[,;\n]+", text):
         part = part.split("#")[0].strip()
@@ -71,8 +35,6 @@ def parse_marks(text):
 
 
 def angles_from_marks(frame_t, mark_t, mark_angle):
-    """Angle of every frame (linear interpolation) and a mask of the frames that lie
-    between the first and the last mark."""
     frame_t = np.asarray(frame_t, float)
     ang = np.interp(frame_t, mark_t, mark_angle)
     inside = (frame_t >= mark_t[0]) & (frame_t <= mark_t[-1])
@@ -80,8 +42,6 @@ def angles_from_marks(frame_t, mark_t, mark_angle):
 
 
 def write_log(run, ang, keep, log_path):
-    """Append the readings of the kept frames to the measurement log. Readings of the
-    same run (same run id) already in the log are removed first."""
     run_id = int(run["run_id"])
     log = json.load(open(log_path)) if os.path.exists(log_path) else []
     before = len(log)
@@ -106,7 +66,6 @@ def write_log(run, ang, keep, log_path):
     return added, replaced, len(log)
 
 
-# ----------------------------------------------------------------------
 def show(run):
     t = run["frame_time_rel"]
     level = np.median(run["gains"], axis=1)
@@ -135,14 +94,13 @@ def main():
     ap.add_argument("--marks", type=str, default=None, help='"time_s:angle_deg, ..." e.g. "0:-90, 15:0, 30:90"')
     ap.add_argument("--marks-file", type=str, default=None)
     ap.add_argument("--run", type=str, default=None,
-                    help="recording to use (default output/<cut>_continuous_raw.npz)")
+                    help="recording to use (default data/<cut>_continuous_raw.npz)")
     ap.add_argument("--time-shift", type=float, default=0.0)
     ap.add_argument("--hold-ends", action="store_true")
     ap.add_argument("--show", action="store_true", help="only show the recording's level over time")
     args = ap.parse_args()
 
-    name = args.cut + (f"_{args.tag}" if args.tag else "")      # file stem
-    tagopt = f" --tag {args.tag}" if args.tag else ""
+    name = args.cut + (f"_{args.tag}" if args.tag else "")
     run_path = args.run or os.path.join(OUT_DIR, f"{name}_continuous_raw.npz")
     if not os.path.exists(run_path):
         print(f"No recording at {run_path} - run measure_continuous.py first.")
@@ -185,7 +143,7 @@ def main():
     print(f"Added {added} readings to {log_path}"
           + (f" (replaced {replaced} older readings of this recording)" if replaced else "")
           + f"; {total} in total.")
-    print(f"\nNow run:  python plot_pattern.py --cut {args.cut}{tagopt}")
+    print("\nNow run:  python run_all.py   (with the tag in dataset.TAGS)")
 
 
 if __name__ == "__main__":

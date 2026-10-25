@@ -1,27 +1,8 @@
 """
-split_runs.py - recover separate data sets from a log in which several measurements
-were APPENDED together (the measurement scripts always append to
-output/<cut>[_tag]_measurements.json (merged).
+split_runs.py - splits a log in which several sweeps were appended into one data set per run (by run id, backward
+angle jumps or background on/off); the original log is never changed.
 
-    python split_runs.py --cut azimuth                      # only list the runs it finds
-    python split_runs.py --cut azimuth --assign 1=air,2=pla,3=petg   # write one file per run
-
-Your original file is never modified. The new files are
-output/<cut>_<name>_measurements.json and work with plot_pattern.py --tag <name> and
-compare_patterns.py.
-
-HOW RUNS ARE FOUND
-  * Readings are grouped into frames/captures of 16 consecutive readings (one per TX-RX pair).
-  * A new run starts when (a) the stored run id changes (logs written by the newer
-    measure_continuous.py / assign_angles.py), or (b) the angle jumps BACKWARDS by more than
-    --jump degrees from one frame to the next (default 45: a sweep that ended at +90 and a new
-    one that starts at -90), or (c) background subtraction was switched on/off.
-  * The table shows, per run, the number of frames, angle span, the range the target was found
-    at and the median level in absolute units. Use it to decide which run is which: if you
-    measured them in a known order (e.g. air, PLA, PETG), run 1, 2, 3 are in that order.
-  * If two runs had overlapping angles in the same direction and nothing else separating them,
-    they cannot be told apart automatically; the table will show one big run. In that case
-    the --jump option cannot help - say so and re-measure that one.
+    python split_runs.py --cut azimuth --assign 1=air,2=pla,3=petg
 """
 import argparse
 import json
@@ -30,11 +11,10 @@ import sys
 
 import numpy as np
 
-OUT_DIR = "output"
+OUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
 
 
 def frames_of(log):
-    """Split the reading list into frames (one per TX-RX sweep of the 16 channels)."""
     pairs = sorted({(r["tx"], r["rx"]) for r in log})
     n_ch = len(pairs)
     if len(log) % n_ch:
@@ -116,7 +96,7 @@ def main():
         with open(out, "w") as fh:
             json.dump(flat, fh, separators=(",", ":"))
         print(f"run {k} -> {out} ({len(flat)} readings)")
-    print("\nNext:  python compare_patterns.py --cut " + args.cut + " --tags air pla petg --ref air")
+    print("\nNext:  python run_all.py   (with the tags in dataset.TAGS)")
 
 
 if __name__ == "__main__":

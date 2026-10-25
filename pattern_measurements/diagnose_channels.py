@@ -1,26 +1,17 @@
 """
-diagnose_channels.py — one capture, boresight, answers one question fast:
+diagnose_channels.py - one boresight capture: the peak amplitude of all 16 TX-RX channels, sorted, outliers
+against the median flagged (a channel weak at every angle is hardware, not pattern).
 
-    "Is one RX (or TX) channel systematically weak, independent of angle?"
-
-That's a hardware/cable/calibration signature, not a directional-pattern
-effect, and it's exactly what your azimuth plot showed (all "RX2" points
-sitting ~15 dB below everything else at EVERY angle, including 0 deg).
-A real antenna pattern effect would vary smoothly with angle; a flat
-per-channel offset that doesn't is a wiring/connector/gain problem.
-
-Point the radar at your target at 0 deg (boresight) and run:
-
-    python diagnose_channels.py --cli COM4 --cfg pattern_awr2944P.cfg --range-m 1.5
-
-It prints each of the 16 TX-RX channels' peak amplitude, sorted, and flags
-any channel that's an outlier vs. the group median.
+    python diagnose_channels.py --cli COM4 --cfg config/pattern_awr2944P.cfg --range-m 1.5
 """
 import argparse
+import os
 
 import numpy as np
 
-from capture_lib import preflight_check, capture_once, load_complex_cube, CaptureError
+from capture_lib import preflight_check, capture_once, load_complex_cube
+
+DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
 
 
 def main():
@@ -37,17 +28,16 @@ def main():
     preflight_check()
     print("OK. Capture ONE boresight shot (target centered, 0 deg)...")
 
-    bin_path = "output/_diagnose.bin"
-    import os
-    os.makedirs("output", exist_ok=True)
+    bin_path = os.path.join(DATA_DIR, "_diagnose.bin")
+    os.makedirs(DATA_DIR, exist_ok=True)
     n_bytes, p = capture_once(args.cli, args.cfg, args.seconds, bin_path)
     print(f"Captured {n_bytes} bytes.\n")
 
-    cube = load_complex_cube(bin_path, p)          # (frames, chirps, 16, samples)
+    cube = load_complex_cube(bin_path, p)
     window = np.hanning(cube.shape[-1])
     range_fft = np.fft.fft(cube * window, axis=-1)
     n_half = cube.shape[-1] // 2
-    per_channel = np.abs(range_fft[:, :, :, :n_half]).mean(axis=(0, 1))  # (16, n_half)
+    per_channel = np.abs(range_fft[:, :, :, :n_half]).mean(axis=(0, 1))
 
     if args.range_m is not None:
         center = int(np.argmin(np.abs(p["range_axis"] - args.range_m)))

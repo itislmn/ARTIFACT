@@ -1,55 +1,10 @@
 """
-measure_continuous.py - ONE long capture while you sweep smoothly from one angle
-to the other. Every radar frame becomes a data point (~10 per second), which is
-what gives the dense, continuous curves of a reference pattern plot - instead of
-one point per minute of stopping, moving and re-capturing.
+measure_continuous.py - one long capture while the target sweeps from one angle to the other: every frame gives
+one reading per channel (about 10 per second), its angle interpolated between Enter marks or assigned later.
 
-    python measure_continuous.py --cli COM4 --cfg pattern_awr2944P.cfg ^
-        --cut azimuth --range-m 0.30 --start -90 --stop 90 --mark-step 30 --background
-
-    python plot_pattern.py --cut azimuth
-
-CAN'T PRESS ENTER WHILE MOVING THE TARGET?  Use --mark-later
-------------------------------------------------------------
-    python measure_continuous.py --cli COM4 --cfg pattern_awr2944P.cfg ^
-        --cut azimuth --range-m 0.30 --mark-later --background
-Both hands stay free: you only press Enter to start and once to stop. A clock shows the
-seconds since GO; jot down (or film) the time at which the target passes landmark angles.
-Afterwards, no hardware needed:
-    python assign_angles.py --cut azimuth --show
-    python assign_angles.py --cut azimuth --marks "0:-90, 6:-60, 15:0, 24:60, 30:90"
-See assign_angles.py for details (--time-shift, --hold-ends, re-running with other marks).
-
-HOW THE ANGLE OF EACH FRAME IS KNOWN (Enter-marks mode)
--------------------------------------------------------
-The radar does not know the angle - you do. You give it "marks": after the
-recording starts you press Enter at each waypoint (-90, -60, ..., +90) at the
-instant the target passes that angle. Every frame has an arrival timestamp; its
-angle is linearly interpolated between the two marks around it. Frames before
-the first mark / after the last one are held at the end angles. Marking every
-30 deg keeps the error to about a degree even if your speed is not constant.
-Practical tips:
-  * Easiest and most accurate: leave the TARGET fixed and ROTATE THE RADAR about
-    its own vertical axis (range and geometry stay perfect; the angle you mark
-    is the angle between the radar's boresight and the target).
-  * Move at a steady, slow pace (e.g. 180 deg in 40-60 s).
-  * Mark as the target passes each angle, not a moment later.
-
-WHAT THIS CHANGES IN THE RADAR CONFIG (a temporary copy, your .cfg is untouched)
------------------------------------------------------------------------------
-  frameCfg: numFrames -> 10000 (runs until this script sends sensorStop) and
-  numLoops -> --loops (default 32, half of 64: keeps the data rate near 7 MB/s
-  so no UDP packets are lost; you still get 32 chirps x 4 TX of coherent gain
-  per frame). Everything else (chirps, profile, TDM order) stays exactly as is.
-
-Results: the raw frame-level table (no angles) is always saved to
-output/<cut>_continuous_raw.npz; every frame x channel is appended to
-output/<cut>_measurements.json (same format as measure_interactive.py, so both can be
-mixed) - immediately in Enter-marks mode, via assign_angles.py with --mark-later.
-Nothing is filtered.
+    python measure_continuous.py --cli COM4 --cfg config/pattern_awr2944P.cfg --cut azimuth --tag air --range-m 0.30 --background
 """
 import argparse
-import json
 import os
 import socket
 import struct
@@ -66,18 +21,12 @@ from pattern_lib import (frame_cube, frame_spectrum, range_window, find_target_b
                          noise_floor, reference_looks_wrong)
 from assign_angles import angles_from_marks, write_log
 
-OUT_DIR = "output"
+OUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
 SEARCH_HALF_WIDTH_M = 0.35
-MAX_SEQ_GAP = 2000          # larger jumps are treated as "field not interpretable", never zero-filled
+MAX_SEQ_GAP = 2000
 
 
-# ----------------------------------------------------------------------
-# config handling
-# ----------------------------------------------------------------------
 def make_continuous_cfgs(cfg_path, loops, out_dir):
-    """Copy of the .cfg with frameCfg's numLoops/numFrames changed and the final
-    sensorStart removed (this script sends sensorStart itself so it knows the
-    exact moment). Returns the path of the copy."""
     out, found = [], False
     for raw in open(cfg_path):
         line = raw.strip()
@@ -89,8 +38,8 @@ def make_continuous_cfgs(cfg_path, loops, out_dir):
         if tok[0] == "frameCfg":
             if len(tok) < 5:
                 raise CaptureError(f"unexpected frameCfg line: '{line}'")
-            tok[3] = str(int(loops))       # numLoops   (parse_cfg: v[2])
-            tok[4] = "10000"               # numFrames  (parse_cfg: v[3]); stopped by sensorStop
+            tok[3] = str(int(loops))
+            tok[4] = "10000"
             line = " ".join(tok)
             found = True
         out.append(line)
@@ -102,18 +51,7 @@ def make_continuous_cfgs(cfg_path, loops, out_dir):
     return path
 
 
-# ----------------------------------------------------------------------
-# UDP stream receiver: writes the payload to a file and time-stamps frames
-# ----------------------------------------------------------------------
 class StreamReceiver(threading.Thread):
-    """DCA1000 data packet = 10-byte header (4-byte sequence number, 6-byte byte
-    count) + payload. Payload is appended to `out_path`. Because every radar frame
-    has a fixed size, the arrival time of the packet that completes frame k IS
-    that frame's timestamp - no need to know the radar's frame period.
-
-    Packet loss would shift every later frame; the sequence numbers are used to
-    zero-fill small gaps so alignment survives (and the loss is reported). The
-    sequence field is only trusted if the jump is 1..MAX_SEQ_GAP."""
 
     def __init__(self, out_path, frame_bytes, bind_ip=None, port=None):
         super().__init__(daemon=True)
@@ -178,9 +116,6 @@ class StreamReceiver(threading.Thread):
 
 
 def record(cli, cfg_nostart, out_bin, frame_bytes, during, dca_timer=255):
-    """arm DCA1000 -> start receiving -> send config -> sensorStart (timestamped)
-    -> run `during(t_sensor_start)` (your interaction) -> sensorStop -> clean up.
-    Returns (during's return value, the StreamReceiver with frame_times etc.)."""
     import serial
     force_sensor_stop(cli)
     dca_sock = arm_dca1000(4, timer=dca_timer)
@@ -212,12 +147,7 @@ def record(cli, cfg_nostart, out_bin, frame_bytes, during, dca_timer=255):
     return result, rx
 
 
-# ----------------------------------------------------------------------
-# processing (pure numpy)
-# ----------------------------------------------------------------------
 def spectra_from_bin(bin_path, p, n_frames=None):
-    """Range spectrum of every frame -> (frames, channels, n_half) complex64.
-    Frame by frame from a memory map, so long captures do not need much RAM."""
     per = p["numAdcSamples"] * p["numRx"] * p["chirpsPerFrame"]
     raw = np.memmap(bin_path, dtype=np.int16, mode="r")
     n = raw.size // per if n_frames is None else min(n_frames, raw.size // per)
@@ -230,15 +160,10 @@ def spectra_from_bin(bin_path, p, n_frames=None):
 
 
 def analyse_frames(Xs, B, p, center_m, half_m):
-    """Xs: (frames, ch, n_half) raw spectra, B: reference or None.
-    The target is physically at ONE range for the whole sweep, so the range bin is
-    found once (from the strongest 10 % of the frames), then every frame is read at
-    that bin (+/-1 for small drift) - a weak wide-angle frame can never jump to a
-    clutter peak elsewhere. Returns dict of per-frame arrays."""
     ra = p["range_axis"]
     Ys = Xs - B if B is not None else Xs
     lo, hi = range_window(ra, Xs.shape[2], center_m, half_m)
-    energy = (np.abs(Ys[:, :, lo:hi]) ** 2).mean(axis=1)                  # (frames, bins)
+    energy = (np.abs(Ys[:, :, lo:hi]) ** 2).mean(axis=1)
     strong = energy.max(axis=1) >= np.quantile(energy.max(axis=1), 0.9)
     lock_bin = lo + int(np.argmax(energy[strong].mean(axis=0)))
     best = int(np.argmax(energy.max(axis=1)))
@@ -262,13 +187,10 @@ def analyse_frames(Xs, B, p, center_m, half_m):
 
 
 def frame_angles(frame_times, marks, waypoints, active_s):
-    """Angle of every frame: linear interpolation between the marks; frames outside
-    the marked interval are held at the first/last waypoint."""
     t_center = np.asarray(frame_times) - 0.5 * active_s
     return np.interp(t_center, marks, waypoints)
 
 
-# ----------------------------------------------------------------------
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--cli", required=True)
@@ -297,7 +219,7 @@ def main():
     args = ap.parse_args()
 
     os.makedirs(OUT_DIR, exist_ok=True)
-    name = args.cut + (f"_{args.tag}" if args.tag else "")      # file stem
+    name = args.cut + (f"_{args.tag}" if args.tag else "")
     tagopt = f" --tag {args.tag}" if args.tag else ""
     if args.waypoints:
         waypoints = [float(x) for x in args.waypoints.split(",")]
@@ -329,7 +251,6 @@ def main():
     print(f"Frame = {p['numLoops']} loops x {p['numTx']} TX = {p['chirpsPerFrame']} chirps, "
           f"{frame_bytes/1e3:.0f} kB; active time {active_s*1e3:.1f} ms per frame.\n")
 
-    # ---------------- background ----------------
     B = None
     if args.background:
         print("=" * 60)
@@ -352,7 +273,6 @@ def main():
         print("WARNING: range < 0.6 m and no --background: TX-RX leakage (~0.17 m) is only a few")
         print("range bins from the target. Consider --background.\n")
 
-    # ---------------- the sweep ----------------
     print("=" * 60)
     if args.mark_later:
         print(f"SWEEP (marks entered afterwards): put the target at {args.range_m} m from the radar at your")
@@ -413,7 +333,7 @@ def main():
     if n_frames < 10:
         print("Far too few frames - check the UART log above.")
         sys.exit(1)
-    if rx.frame_times[-1] < marks[-1] - 1.5:   # in --mark-later mode marks[-1] is the moment you pressed stop
+    if rx.frame_times[-1] < marks[-1] - 1.5:
         print("WARNING: the data stream stopped BEFORE your last mark. The frames after that "
               "point are missing (DCA1000 timer / packet problem?) - the last angles are not measured.")
 
@@ -428,16 +348,13 @@ def main():
         print("!! WARNING: after subtracting the empty-scene reference almost nothing is left at the")
         print("   target range. The reference probably already contained the target, so the")
         print("   subtraction may have erased the REAL signal. Re-record it with the target truly")
-        print(f"   removed, or plot the un-subtracted numbers:  python plot_pattern.py --cut {args.cut}{tagopt} --use raw")
+        print("   removed; the un-subtracted gains are stored too (gain_raw_linear)")
 
-    # Frame time relative to GO (sensorStart), referred to the CENTRE of the frame's active time.
     n = Xs.shape[0]
     t_rel = np.asarray(rx.frame_times[:n]) - rx.t_start - 0.5 * active_s
     ra = p["range_axis"]
     run_id = int(rx.t_start)
 
-    # The raw recording (everything measured, no angles yet) is ALWAYS saved: with it the angles
-    # can be assigned - or changed - at any time with assign_angles.py.
     raw_path = os.path.join(OUT_DIR, f"{name}_continuous_raw.npz")
     np.savez_compressed(raw_path, frame_time_rel=t_rel, gains=res["gains"], gains_raw=res["gains_raw"],
                         noise=res["noise"], bins=res["bins"], range_m=ra[res["bins"]],
@@ -462,7 +379,7 @@ def main():
           f"{(~inside).sum()} more are held at the end angles.")
     added, replaced, total = write_log(run, ang, np.ones(n, bool), log_path)
     print(f"Appended {added} readings to {log_path} ({total} total).")
-    print(f"\nNow run:  python plot_pattern.py --cut {args.cut}{tagopt}")
+    print("\nNow run:  python run_all.py   (with the tag in dataset.TAGS)")
 
 
 if __name__ == "__main__":

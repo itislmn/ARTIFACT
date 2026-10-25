@@ -1,0 +1,140 @@
+# obstacle/config.toml - the one settings file of the obstacle experiment (read with Python's tomllib).
+# Every value is a physical fact of the set-up (MEASURE it), a stated design level (alpha, clearance), or taken over
+# from the experiment that tested it. Nothing here describes the scene: the system finds the obstacles itself.
+
+session = "OB2"                  # output/takes/<session>/ : references and runs of one measurement day
+
+[radar]                          # AWR2944PEVM (TDM demo in flash, QSPI boot) + DCA1000EVM
+cli_port = "COM4"                # XDS110 Class Application/User UART (Windows Device Manager)
+mode = "subframes"               # "subframes": every chirp below preloaded, zero blind time; "single": search chirp only.
+                                 # If the board rejects the advanced frame, the program falls back to "single" itself.
+frame_ms = 105.0                 # the advanced frame: every chirp once (3 x 128 loops = 87.6 ms of chirps + 5 ms after
+                                 # each sub-frame -> >= 102.6 ms); each sub-frame lasts its chirps + an equal share of the
+                                 # idle time (methods/waveforms.subframe_periods). 2 x 2.1 MB per frame = 40 MB/s (the 3rd sub-frame lost packets) on the
+                                 # Ethernet link (52 MB/s streamed loss-free so far: `check` reports the lost packets)
+look_policy = "cognitive"        # which sub-frames are processed (methods/chirp_choice.py, THE SAME FILE as in tracking/):
+                                 # "cognitive" (the plan with the lowest predicted uncertainty of the results that exist,
+                                 # processing time and aliasing included), or the fixed baselines "search" (first chirp
+                                 # only) and "all" (every sub-frame). Compare them on one recording with
+                                 # python experiment.py compare <take recorded with --raw>
+r_min_m = 0.25                   # closer: TX-RX leakage (estimation/, tracking/). The platform also never drives closer
+                                 # than r_min + one range cell to an obstacle it stops for (it must keep seeing it)
+r_max_m = 2.6                    # radar range: from home it reaches x_max_m
+x_max_m = 2.6                    # WORLD forward limit, the farthest point of interest: end of the forward travel (1.25 m)
+                                 # + 0.85 m beyond it + 0.5 m. Echoes beyond are the back wall or reflections through it.
+y_min_m = -1.0                   # WORLD sideways limits (walls / furniture beside the rail, from the rail's centre line):
+y_max_m = 1.0                    # MEASURE. Echoes beyond are walls or reflections through them.
+doppler_sign = 1                 # +1: radial speed > 0 = moving away (tracking/: agreed with the range rate on real data)
+
+[[waveform]]                     # sub-frame 0 - processed in every frame
+name = "search"                  # = estimation's verified base chirp = material_classification's chirp
+slope_mhz_us = 70.0
+idle_us = 26.5
+[[waveform]]                     # sub-frame 1 - processed when the chirp choice wants it (methods/chirp_choice.py)
+name = "fast"                    # shorter idle time: v_max 5.2 instead of 3.8 m/s (armed live in tracking/ as "track_fast")
+slope_mhz_us = 70.0
+idle_us = 10.0
+
+[detection]                      # Infini-Rex + weighted e-BH over the whole look (methods/infinirex.py)
+alpha = 0.10                     # FDR level of every look: expected share of false detections among all reported
+gate_pfa = 1e-3                  # false-alarm probability per range-Doppler cell of the search CFAR (OS-CFAR, median)
+gates_per_frame = 48             # at most this many range-Doppler cells get Infini-Rex per look (tracking/: 24 for two
+                                 # objects; OB2 run_2: ~72 cells passed the CFAR per look among ~6 objects): predicted regions first,
+                                 # cells the empty path explains last (the background competes for the budget and loses)
+
+[tracking]                       # KalmanCQR (methods/tracker.py, kalman_cqr.py), values of the tracking experiment
+alpha = 0.10                     # prediction regions: P(next measurement outside) = alpha (conformal, distribution-free)
+aci_gamma = 0.02                 # adaptive conformal inference step (Gibbs & Candes 2021)
+score_window = 300               # last scores used by the conformal quantile regression
+accel_sigma_mps2 = 4.9           # white-noise acceleration: g/2 (a pendulum bob reaches g sin(phi))
+confirm_hits = 3                 # a track is confirmed after 3 hits ...
+confirm_window = 4               # ... in its first 4 looks (M-of-N)
+lost_after_s = 1.0               # deleted after 1 s of observation without an update
+object_extent_m = 0.6            # the largest object: a person incl. swinging arms/legs (+-0.3 m)
+max_speed_mps = 1.5              # fastest object expected (a walking person): also the planner's physical reach
+horizons_s = [0.5, 1.0]          # prediction regions further ahead (used for the safety checks)
+reacquire = true
+doppler_sign = 1
+
+[rail]                           # isel 3-axis rail, TMCL controller (isel/terminal_controller_3axis.py, tested)
+port = "COM3"                    # USB-serial adapter of the controller (Device Manager)
+baud = 9600
+address = 1
+motors = [0, 1, 2]               # TMCL motor of the forward (x: LES 6, 1390 mm), sideways (y: LES, 290 mm) and vertical
+                                 # (z: MS135HT module) axis
+steps_per_mm = [806.94, 1645.244, 1677.19]   # calibration factors of terminal_controller_3axis.py; x is MEASURED by
+                                 # `railscale` (radar on a corner reflector), y and z with `measure` in the terminal
+axis_sign = [-1, 1, 1]           # forward (toward the scene) = "back" in the terminal controller = negative steps
+microstep = 4                    # SAP 140 = 4 (1/16 microstepping), as the terminal controller sets it
+current = [1500, 1500, 1500]     # SAP 6 per axis (x, y, z), as the terminal controller
+speed = [7000, 7000, 7000]       # SAP 4 per axis (controller units); the controller's own value is read back and
+accel = [850, 850, 850]          # SAP 5 per axis; printed by `check`, kept in rail.json; the real mm/s are MEASURED
+x_mm = [0.0, 1240.0]             # travel of the antenna centre from home (all axes zeroed with "sethome" at the far
+y_mm = [-60.0, 60.0]             # end, sideways in the middle, vertical at its lowest): forward 1250, sideways +-70,
+z_mm = [0.0, 0.0]                # up 130 mm, 10 mm kept from every end stop. z stays at its lowest: anything the
+                                 # raised box could pass over stands on the floor within the sideways unit
+expected_speed_mm_s = 20.0       # until measured: used for the danger zone before the first move
+stop_mm = 5.0                    # stopping distance until measured (every stop is measured and the largest is used);
+                                 # until a stop is measured, the stopping TIME is taken as 2 x stop_mm / speed
+poll_hz = 20.0                   # position reads per second (one read ~19 ms at 9600 Bd)
+watchdog_s = 0.6                 # no planner decision for this long while moving: the rail stops by itself
+
+[platform]                       # metres, relative to the ANTENNA CENTRE with the rail at home; x fwd, y right, z up
+antenna_height_m = 0.38          # antenna centre above the floor at the lowest z (home)
+head_x_m = [-0.15, 0.04]         # radar + camera box (13-20 cm) and the vertical unit under it: moves with x and y,
+head_y_m = [-0.07, 0.12]         # from the top of the sideways unit (16 cm above the floor) to the top of the box;
+                                 # box 14 cm wide, antenna centre 2 cm from its left side, the motor behind it 5 cm more
+head_z_m = [-0.22, 0.10]
+carriage_x_m = [-0.25, 0.05]     # what rides the FORWARD axis only: the rail (9 cm) and the sideways unit on it (7 cm,
+carriage_y_m = [-0.155, 0.155]   # 290 mm long) - an object inside this cross-section cannot be passed by moving
+carriage_z_m = [-0.38, -0.22]    # sideways
+
+[planner]                        # methods/planner.py
+observe_s = 3.0                  # a run starts with the rail still: the tracker confirms objects and calibrates its regions
+alpha = 0.05                     # risk level of the prediction regions in the collision checks (alpha_plan < tracking alpha)
+clearance_m = 0.02              # required air gap between the platform and an object's 95 % box (design value)
+horizon_s = 1.0                  # after a wait: drive on once nothing has been close enough for this long
+                                 # "close enough" is not a setting: a mover that can reach the platform within the
+                                 # MEASURED response time (frame + processing + loop + rail stop; planner.py rule 1)
+verify_s = 1.0                   # after a sidestep: look this long from the new place before driving on
+step_m = 0.01                    # grid of the side/height offsets tried
+footprint_s = 3.0                # a moving non-person blocks what it covered in the last 3 s (a swinging ball: its arc)
+absent_s = 2.0                   # a remembered obstacle is forgotten after 2 s of looking at its empty place
+return_to_centre = true          # back to the home offset once the obstacle is passed
+
+[camera]                         # ISY IW-1000-1 on the radar (computer_vision/)
+name = "IW 1000-1"
+width = 1280
+height = 720
+exposure = -6                    # FIXED exposure (log2 s): auto exposure reacts to the light itself (computer_vision/)
+clip_level = 250                 # luma >= this counts as clipped (MJPG smears 255 down to ~250)
+crop_px = 220                    # side of the attention crop on screen
+
+[alignment]                      # radar -> camera (backend/calibration/alignment.json from computer_vision/align.py)
+bar_z_m = [-0.38, 0.30]          # an object without measured height is drawn between these heights (rel. to the antenna)
+
+[text]                           # the MetricSight reader (methods/reader/metricsight.py)
+truth = "ARTIFACT"               # the written text: readings are scored live (evaluation only)
+region_m = [0.30, 0.12]          # region read around the object (w, h): the ball's paper label (tracking/)
+object_radius_m = 0.10           # heights searched: the object's centre and +- half of this (tracking/: the ball radius)
+centre_z_m = 0.0                 # height of the label centre rel. to the antenna if the radar has not measured one
+mm_per_px = 1.5
+window_mm = 40.0
+letter_mm = 35.0
+read_hz = 6                      # reads per second at most (reader in its own process)
+
+[light]                          # sudden / flashing light on the camera (methods/light.py)
+source_size_m = 0.01             # the light of OB2, a smartphone flash (its window about 1 cm): the smallest light
+                                 # that counts is this big at r_max
+k_sigma = 5.0                    # a pixel brightened by > 5 noise standard deviations between two frames
+off_s = 0.5                      # a light event ends 0.5 s after the extra clipped area is gone
+flash_window_s = 2.0             # >= 2 onsets in this time = a FLASHING light
+refit_s = 1.0                    # the veil is refitted every second while a light is on
+
+[record]
+video_fps = 10                   # the live picture is recorded at this rate (output/videos/<session>_<take>.mp4)
+video_crf = 26                   # H.264 quality (higher = smaller file)
+crops_hz = 0                     # attention crops saved per second at most (0: none; the live video shows the crop)
+
+[display]
+max_hz = 12

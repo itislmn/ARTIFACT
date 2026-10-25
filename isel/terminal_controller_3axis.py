@@ -1,132 +1,153 @@
-import serial
+"""
+terminal_controller_3axis.py - an interactive terminal for the three isel axes (TMCL over RS-232): jog, go to, set home,
+status, the parameters the controller really uses, speed tests and steps-per-millimetre measurement, recorded macros.
+
+    python terminal_controller_3axis.py      (then help)
+"""
+import json
 import struct
 import time
-import json
+
+import serial
+
+STATUS = {1: "wrong checksum", 2: "invalid command", 3: "wrong type", 4: "invalid value", 5: "EEPROM locked",
+          6: "command not available"}
+PARAMS = {"microstep": 140, "current": 6, "speed": 4, "accel": 5}
+AXES = {0: "x, the long rail ('back' drives toward the scene)", 1: "y, sideways", 2: "z, vertical"}
+
 
 class MotorMaster:
     def __init__(self, port='COM3'):
         try:
             self.ser = serial.Serial(port, 9600, timeout=0.1)
-            self.addr = 1
+        except serial.SerialException as e:
+            print(f"ERROR: Connection failed ({e}).")
+            raise SystemExit(1)
+        self.addr = 1
+        self.profiles = {
+            0: {'cal': 806.94, 'microstep': 4, 'current': 1500, 'speed': 7000, 'accel': 850},
+            1: {'cal': 1645.244, 'microstep': 4, 'current': 1500, 'speed': 7000, 'accel': 850},
+            2: {'cal': 1677.19, 'microstep': 4, 'current': 1500, 'speed': 7000, 'accel': 850}
+        }
+        self.cal = {m: p['cal'] for m, p in self.profiles.items()}
+        self.macros = {}
+        print("--- INITIALIZING HARDWARE STATES ---")
+        for m in [0, 1, 2]:
+            for name, typ in PARAMS.items():
+                self.send(5, typ, m, self.profiles[m][name])
+        self.info()
+        print("--- ISEL RADAR MASTER SYSTEM ONLINE ---")
 
-            # 1. INDIVIDUAL MOTOR PROFILES
-            # Format: { motor_id: [Calibration, Speed, Torque, Accel] }
-            self.profiles = {
-                0: {'cal': 806.94, 'speed': 7000, 'torque': 1500, 'accel': 850},  # Y (Base)
-                1: {'cal': 1645.244, 'speed': 7000, 'torque': 1500, 'accel': 850},  # X (Pan)
-                2: {'cal': 1677.19, 'speed': 7000, 'torque': 1500, 'accel': 850}  # Z (Lift)
-            }
-
-            # Independent calibration for each motor: {motor_id: factor}
-            self.cal = {0: 806.94, 1: 1645.244, 2: 1677.19}
-            self.macros = {}
-
-            # ... existing __init__ code ...
-            print("--- INITIALIZING HARDWARE STATES ---")
-            for m in [0, 1, 2]:
-                self.send(5, 140, m, 4)  # Force 1/16 Microstepping
-                self.send(5, 6, m, self.profiles[m]['torque'])  # Force Torque
-                self.send(5, 4, m, self.profiles[m]['speed'])  # Force Speed
-                self.send(5, 5, m, self.profiles[m]['accel'])  # Force Accel
-            print("--- ISEL RADAR MASTER SYSTEM ONLINE ---")
-        except:
-            print("ERROR: Connection failed.")
-            exit()
-
-    def send(self, cmd, type_spec, motor, value):
-        # 1. Virtual 'Wait' (Command 99)
+    def send(self, cmd, type_spec, motor, value=0, record=True):
         if cmd == 99:
-            try:
-                if recording:
-                    current_macro.append(('wait', 0, 0, value))
-            except NameError:
-                pass  # recording doesn't exist yet during init
+            if record and recording:
+                current_macro.append(('wait', 0, 0, value))
             return 0
-
-        # 2. YOUR ORIGINAL HARDWARE LOGIC (Preserved exactly)
-        packet = struct.pack('>BBBBib', self.addr, cmd, type_spec, motor, int(value), 0)
-        packet = packet[:8] + struct.pack('B', sum(packet[:8]) % 256)
+        packet = struct.pack('>BBBBi', self.addr, cmd, type_spec, motor, int(value))
+        packet += bytes([sum(packet) % 256])
+        self.ser.reset_input_buffer()
         self.ser.write(packet)
         reply = self.ser.read(9)
+        if record and recording:
+            current_macro.append((cmd, type_spec, motor, value))
+        if len(reply) != 9:
+            print(f"  no reply (instruction {cmd}, type {type_spec}, motor {motor})")
+            return 0
+        if reply[2] not in (100, 101):
+            print(f"  REJECTED: instruction {cmd}, type {type_spec}, motor {motor}, value {int(value)}: "
+                  f"{STATUS.get(reply[2], reply[2])}")
+        return struct.unpack('>i', reply[4:8])[0]
 
-        # 3. RECORDING LOGIC (With 'Safe' check)
-        try:
-            if recording:
-                current_macro.append((cmd, type_spec, motor, value))
-        except NameError:
-            pass  # Initialization is happening, don't record yet
-
-        return struct.unpack('>i', reply[4:8])[0] if len(reply) == 9 else 0
+    def get(self, m, typ):
+        return self.send(6, typ, m, 0, record=False)
 
     def get_pos(self, m):
-        return self.send(6, 1, m, 0)
+        return self.get(m, 1)
 
-    def move_xyz(dist_x, dist_y, dist_z):
-        # Map distances to steps based on your calibration
-        steps_x = dist_x * bot.cal[1]
-        steps_y = dist_y * bot.cal[0]
-        steps_z = dist_z * bot.cal[2]
+    def info(self):
+        for m in [0, 1, 2]:
+            vals = ", ".join(f"{name} {self.get(m, typ)}" for name, typ in PARAMS.items())
+            print(f"Motor {m} ({AXES[m]}): {vals}, {self.cal[m]} steps/mm")
 
-        # Send the commands back-to-back with NO delays
-        # Motor 0 (Y)
-        bot.send(4, 1, 0, steps_y)
-        # Motor 1 (X)
-        bot.send(4, 1, 1, steps_x)
-        # Motor 2 (Z)
-        bot.send(4, 1, 2, steps_z)
+    def wait_still(self, m, timeout=120.0):
+        t0, track = time.perf_counter(), []
+        while time.perf_counter() - t0 < timeout:
+            p = self.get_pos(m)
+            track.append((time.perf_counter(), p))
+            if p == self.get(m, 0) and len(track) > 2 and track[-2][1] == p:
+                break
+            time.sleep(0.03)
+        return track
 
-        print(f"Sent simultaneous move: X:{dist_x} Y:{dist_y} Z:{dist_z}")
+    def speed_test(self, m, mm):
+        for d in (mm, -mm):
+            p0 = self.get_pos(m)
+            self.send(4, 1, m, d * self.cal[m], record=False)
+            tr = self.wait_still(m)
+            t = [a for a, _ in tr]
+            v = [abs(b2 - b1) / (a2 - a1) / self.cal[m] for (a1, b1), (a2, b2) in zip(tr, tr[1:]) if a2 > a1]
+            top = sorted(v)[int(0.9 * (len(v) - 1))] if v else 0.0
+            print(f"  motor {m}: {(tr[-1][1] - p0) / self.cal[m]:+.2f} mm in {t[-1] - t[0]:.2f} s, "
+                  f"top speed {top:.1f} mm/s")
+        print("  back at the start: is the carriage exactly on your pencil mark? (no hum, no jerk = keep this speed)")
 
+
+recording = False
+current_macro = []
 bot = MotorMaster()
+
 
 def cli_help():
     print("""
 ======================== COMMAND REPERTOIRE ========================
 [BASIC MOTION]
-1. fwd <dist_mm>     | 2. back <dist_mm>   (Motor 0)
-3. right <dist_mm>   | 4. left <dist_mm>   (Motor 1)
-5. up <dist_mm>      | 6. down <dist_mm>   (Motor 2)
+1. fwd <dist_mm>     | 2. back <dist_mm>   (Motor 0, x: 'back' drives toward the scene)
+3. right <dist_mm>   | 4. left <dist_mm>   (Motor 1, y)
+5. up <dist_mm>      | 6. down <dist_mm>   (Motor 2, z)
 7. goto <m> <pos_mm> : Absolute move     8. step <m> <steps> : Raw step move
-9. move <x_mm> <y_mm> <z_mm> : Move 3 motors
+9. move <x_mm> <y_mm> <z_mm> : Move 3 motors (x = motor 0, y = 1, z = 2)
 
 [STOP COMMANDS]
 10. stop <m>          : Stop ONE motor    11. halt            : Stop ALL motors
 
 [SYSTEM & CALIBRATION]
-12. sethome          : Zero all axes     13. gohome          : Move all to (0,0,0)
+12. sethome <m>      : Zero one axis     13. gohome          : Move all to (0,0,0)
 14. status           : Show Pos/MM       15. setcal <m> <v>  : Set Steps/MM per motor
-16. micro <m> <0-8>  : Set Microstepping (4=1/16, 8=1/256)
+16. micro <m> <0-6>  : Set Microstepping (4=1/16)
+17. info             : Parameters the controller really uses
+18. measure <m> <mm> : Drive <mm>, type the distance your ruler shows -> steps/mm
+19. test <m> <mm>    : Drive <mm> out and back, measured speed in mm/s
 
 [HIGH PERFORMANCE TUNING]
-17. speed <m> <val>  : Max Velocity      18. accel <m> <val> : Max Acceleration
-19. torque <m> <0-2047>: Motor Power (SAP 6)
+20. speed <m> <val>  : Max Velocity      21. accel <m> <val> : Max Acceleration
+22. torque <m> <val> : Motor current (SAP 6)
 
 [RADAR / ML SPECIALS]
-20. scan <m> <a> <b> : Sweep motor <m> between MM points <a> and <b>
-21. save <name>      : Start recording   22. play <name>     : Run macro
-23. shake <m> <amt>  : High-freq vibration for ML sensor testing
-24. stoprecord : Stop recording     25. export  : Export macro
-26. wait <s> : Waiting time before executing command
+23. scan <m> <a> <b> : Sweep motor <m> between MM points <a> and <b>
+24. save <name>      : Start recording   25. play <name>     : Run macro
+26. shake <m> <amt>  : High-freq vibration for ML sensor testing
+27. stoprecord : Stop recording     28. export  : Export macro
+29. wait <s> : Waiting time before executing command
 ====================================================================
 """)
 
+
 cli_help()
-recording = False
-current_macro = []
 
 while True:
     try:
         inp = input("\nMOTOR-CMD> ").strip().lower().split()
-        if not inp: continue
+        if not inp:
+            continue
         cmd = inp[0]
 
-        # 1-9: MOTION (Now using independent calibration)
-        move_map = {'fwd': (0, 1), 'back': (0, -1), 'right': (1, 1), 'left': (1, -1), 'up': (2, 1), 'down': (2, -1)}
+        move_map = {'fwd': (0, -1), 'back': (0, 1), 'right': (1, 1), 'left': (1, -1), 'up': (2, 1), 'down': (2, -1)}
         if cmd in move_map:
             m, s = move_map[cmd]
-            steps = float(inp[1]) * bot.cal[m] * s
-            bot.send(4, 1, m, steps)
-            if recording: current_macro.append(('step', m, steps))
+            bot.send(4, 1, m, float(inp[1]) * bot.cal[m] * s)
+
+        elif cmd == 'help':
+            cli_help()
 
         elif cmd == 'goto':
             m = int(inp[1])
@@ -136,38 +157,31 @@ while True:
             bot.send(4, 1, int(inp[1]), int(inp[2]))
 
         elif cmd == 'move':
-            # Usage: move <x_mm> <y_mm> <z_mm>
-            # Example: move 50 50 20
-            dx, dy, dz = float(inp[1]), float(inp[2]), float(inp[3])
+            for m, d in enumerate(map(float, inp[1:4])):
+                bot.send(4, 1, m, d * bot.cal[m])
 
-            # Fire all motors
-            bot.send(4, 1, 1, dx * bot.cal[1])  # X
-            bot.send(4, 1, 0, dy * bot.cal[0])  # Y
-            bot.send(4, 1, 2, dz * bot.cal[2])  # Z
-
-        # 10-11: STOPPING
         elif cmd == 'stop':
             bot.send(3, 0, int(inp[1]), 0)
             print(f"Motor {inp[1]} Stopped.")
 
         elif cmd == 'halt':
-            for i in [0, 1, 2]: bot.send(3, 0, i, 0)
+            for i in [0, 1, 2]:
+                bot.send(3, 0, i, 0)
             print("SYSTEM WIDE HALT.")
 
-        # 12-16: SYSTEM
         elif cmd == 'sethome':
-            # Check if the list has at least 2 items (cmd and motor)
             if len(inp) < 2:
                 print("Error: You must specify a motor number (e.g., 'sethome 0')")
             else:
                 m = int(inp[1])
-                bot.send(3, 0, m, 0)  # Stop
-                bot.send(5, 1, m, 0)  # Set Actual to 0
-                bot.send(5, 0, m, 0)  # Set Target to 0
+                bot.send(3, 0, m, 0)
+                bot.send(5, 1, m, 0)
+                bot.send(5, 0, m, 0)
                 print(f"Axis {m} zeroed.")
 
         elif cmd == 'gohome':
-            for i in [0, 1, 2]: bot.send(4, 0, i, 0)
+            for i in [0, 1, 2]:
+                bot.send(4, 0, i, 0)
 
         elif cmd == 'status':
             for i in [0, 1, 2]:
@@ -175,43 +189,65 @@ while True:
                 print(f"Motor {i}: {p} steps ({p / bot.cal[i]:.2f} mm) [Factor: {bot.cal[i]}]")
 
         elif cmd == 'setcal':
-            # Use this to calibrate each motor: setcal <motor_id> <value>
             bot.cal[int(inp[1])] = float(inp[2])
             print(f"Motor {inp[1]} factor set to {inp[2]}")
 
-        # 17-19: TUNING
-        elif cmd == 'speed': bot.send(5, 4, int(inp[1]), int(inp[2]))
-        elif cmd == 'accel': bot.send(5, 5, int(inp[1]), int(inp[2]))
-        elif cmd == 'torque': bot.send(5, 6, int(inp[1]), int(inp[2]))
-        elif cmd == 'micro': bot.send(5, 140, int(inp[1]), int(inp[2]))
+        elif cmd == 'info':
+            bot.info()
 
-        # 20-25: RADAR SPECIALS
+        elif cmd == 'measure':
+            m, mm = int(inp[1]), float(inp[2])
+            p0 = bot.get_pos(m)
+            bot.send(4, 1, m, mm * bot.cal[m], record=False)
+            bot.wait_still(m)
+            steps = bot.get_pos(m) - p0
+            real = float(input(f"  {steps} steps commanded as {mm} mm - distance on your ruler (mm): "))
+            print(f"  motor {m}: {abs(steps) / real:.3f} steps/mm (now {bot.cal[m]}); enter it with "
+                  f"'setcal {m} {abs(steps) / real:.3f}' and in obstacle/config.toml [rail] steps_per_mm")
+
+        elif cmd == 'test':
+            bot.speed_test(int(inp[1]), float(inp[2]))
+
+        elif cmd == 'speed':
+            bot.send(5, 4, int(inp[1]), int(inp[2]))
+            print(f"  in the controller: {bot.get(int(inp[1]), 4)}")
+        elif cmd == 'accel':
+            bot.send(5, 5, int(inp[1]), int(inp[2]))
+            print(f"  in the controller: {bot.get(int(inp[1]), 5)}")
+        elif cmd == 'torque':
+            bot.send(5, 6, int(inp[1]), int(inp[2]))
+            print(f"  in the controller: {bot.get(int(inp[1]), 6)}")
+        elif cmd == 'micro':
+            bot.send(5, 140, int(inp[1]), int(inp[2]))
+
         elif cmd == 'scan':
             m = int(inp[1])
             a, b = float(inp[2]) * bot.cal[m], float(inp[3]) * bot.cal[m]
-            bot.send(4, 0, m, a); time.sleep(0.5); bot.send(4, 0, m, b)
+            bot.send(4, 0, m, a)
+            time.sleep(0.5)
+            bot.send(4, 0, m, b)
 
         elif cmd == 'save':
-            recording = True; current_macro = []; print("Recording macro...")
+            recording = True
+            current_macro = []
+            print("Recording macro...")
 
         elif cmd == 'play':
             name = inp[1]
             if name in bot.macros:
                 print(f"Executing macro: {name}")
-                for entry in bot.macros[name]:
-                    c, t, m, v = entry
+                for c, t, m, v in bot.macros[name]:
                     if c == 'wait':
                         print(f"Sleeping {v}s")
                         time.sleep(v)
                     else:
-                        bot.send(c, t, m, v)
+                        bot.send(c, t, m, v, record=False)
                         time.sleep(0.05)
                 print("Macro complete.")
 
         elif cmd == 'stoprecord':
             if recording:
                 recording = False
-                # Ask for a name to save the macro under
                 name = input("Enter name for this macro: ").strip().lower()
                 bot.macros[name] = current_macro
                 print(f"Macro '{name}' saved with {len(current_macro)} steps.")
@@ -221,8 +257,10 @@ while True:
         elif cmd == 'shake':
             m, amt = int(inp[1]), int(inp[2])
             for _ in range(5):
-                bot.send(4, 1, m, amt); time.sleep(0.1)
-                bot.send(4, 1, m, -amt); time.sleep(0.1)
+                bot.send(4, 1, m, amt)
+                time.sleep(0.1)
+                bot.send(4, 1, m, -amt)
+                time.sleep(0.1)
 
         elif cmd == 'export':
             with open('radar_macros.json', 'w') as f:
@@ -234,6 +272,10 @@ while True:
             bot.send(99, 0, 0, seconds)
             time.sleep(seconds)
 
-
+    except (KeyboardInterrupt, EOFError):
+        for i in [0, 1, 2]:
+            bot.send(3, 0, i, 0, record=False)
+        print("\nAll axes stopped.")
+        break
     except Exception as e:
         print(f"Input error: {e}")

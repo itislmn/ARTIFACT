@@ -1,0 +1,7 @@
+numpy>=2.0       # arrays and FFTs
+scipy>=1.10      # signal processing, statistics, assignment
+matplotlib>=3.7  # figures
+pyserial>=3.5    # radar CLI over UART
+cvxpy>=1.4       # convex solvers
+clarabel>=0.6    # interior-point solver
+# figures: a LaTeX installation (TeX Live) for the text; videos: ffmpeg

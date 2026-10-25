@@ -1,0 +1,285 @@
+{
+  "model": "f+heights",
+  "params": {
+    "rot_x": 0.192098,
+    "rot_y": -0.058157,
+    "rot_z": -0.009988,
+    "c_x": -0.003,
+    "c_y_left": -0.0,
+    "c_z": 0.09,
+    "f": 1111.914371,
+    "k1": 0.0
+  },
+  "hfov_deg": 59.85,
+  "camera_centre_in_radar_frame_m": [
+    -0.003,
+    0.0,
+    0.09
+  ],
+  "height_correction_mm": {
+    "big CR": -10.7,
+    "small CR 2": -6.4,
+    "small CR 1": 18.5
+  },
+  "rms_px": 13.37,
+  "loo_rms_px": 18.92,
+  "error_px": [
+    19.2,
+    19.27,
+    18.29,
+    5.71,
+    4.72,
+    8.38,
+    7.38,
+    9.7,
+    16.15
+  ],
+  "loo_error_px": [
+    28.8,
+    22.56,
+    26.02,
+    13.07,
+    8.17,
+    11.99,
+    9.98,
+    14.1,
+    22.97
+  ],
+  "models": {
+    "f": {
+      "rms_px": 20.63,
+      "loo_rms_px": 26.02
+    },
+    "f+k1": {
+      "rms_px": 18.91,
+      "loo_rms_px": 26.57
+    },
+    "f+heights": {
+      "rms_px": 13.37,
+      "loo_rms_px": 18.92
+    }
+  },
+  "image_size_wh": [
+    1280,
+    720
+  ],
+  "points": [
+    {
+      "take": "align_1",
+      "label": "small CR 2",
+      "range_m": 0.6241,
+      "azimuth_deg": -16.951,
+      "xyz_m": [
+        0.5868,
+        -0.182,
+        -0.11
+      ],
+      "frames_detected": 20,
+      "frames": 20,
+      "method": "infinirex_radar",
+      "tape_xyz_m": [
+        0.5,
+        -0.2,
+        -0.11
+      ],
+      "uv_px": [
+        250.0,
+        549.0
+      ],
+      "image": "recordings\\CV1\\align_1\\snapshot_20261008_150327_618_raw.png"
+    },
+    {
+      "take": "align_2",
+      "label": "small CR 2",
+      "range_m": 0.5097,
+      "azimuth_deg": 3.24,
+      "xyz_m": [
+        0.4969,
+        0.0288,
+        -0.11
+      ],
+      "frames_detected": 20,
+      "frames": 20,
+      "method": "infinirex_radar",
+      "tape_xyz_m": [
+        0.5,
+        0.0,
+        -0.11
+      ],
+      "uv_px": [
+        623.0,
+        576.0
+      ],
+      "image": "recordings\\CV1\\align_2\\snapshot_20261008_141342_461_raw.png"
+    },
+    {
+      "take": "align_3",
+      "label": "small CR 2",
+      "range_m": 0.5391,
+      "azimuth_deg": 21.038,
+      "xyz_m": [
+        0.491,
+        0.1935,
+        -0.11
+      ],
+      "frames_detected": 1,
+      "frames": 20,
+      "method": "infinirex_radar",
+      "tape_xyz_m": [
+        0.5,
+        0.15,
+        -0.11
+      ],
+      "uv_px": [
+        969.0,
+        568.0
+      ],
+      "image": "recordings\\CV1\\align_3\\snapshot_20261008_150435_788_raw.png"
+    },
+    {
+      "take": "align_4",
+      "label": "big CR",
+      "range_m": 0.7254,
+      "azimuth_deg": -23.089,
+      "xyz_m": [
+        0.6672,
+        -0.2845,
+        -0.01
+      ],
+      "frames_detected": 20,
+      "frames": 20,
+      "method": "infinirex_radar",
+      "tape_xyz_m": [
+        0.65,
+        -0.25,
+        -0.01
+      ],
+      "uv_px": [
+        101.0,
+        331.0
+      ],
+      "image": "recordings\\CV1\\align_4\\snapshot_20261008_143947_925_raw.png"
+    },
+    {
+      "take": "align_5",
+      "label": "small CR 1",
+      "range_m": 0.6744,
+      "azimuth_deg": 4.032,
+      "xyz_m": [
+        0.6715,
+        0.0474,
+        0.04
+      ],
+      "frames_detected": 20,
+      "frames": 20,
+      "method": "infinirex_radar",
+      "tape_xyz_m": [
+        0.65,
+        0.0,
+        0.04
+      ],
+      "uv_px": [
+        653.0,
+        192.0
+      ],
+      "image": "recordings\\CV1\\align_5\\snapshot_20261008_141126_046_raw.png"
+    },
+    {
+      "take": "align_6",
+      "label": "small CR 2",
+      "range_m": 0.7666,
+      "azimuth_deg": 18.735,
+      "xyz_m": [
+        0.7176,
+        0.2462,
+        -0.11
+      ],
+      "frames_detected": 20,
+      "frames": 20,
+      "method": "infinirex_radar",
+      "tape_xyz_m": [
+        0.65,
+        0.18,
+        -0.11
+      ],
+      "uv_px": [
+        947.0,
+        447.0
+      ],
+      "image": "recordings\\CV1\\align_6\\snapshot_20261008_150553_003_raw.png"
+    },
+    {
+      "take": "align_7",
+      "label": "small CR 2",
+      "range_m": 0.9476,
+      "azimuth_deg": -17.75,
+      "xyz_m": [
+        0.8957,
+        -0.2889,
+        -0.11
+      ],
+      "frames_detected": 20,
+      "frames": 20,
+      "method": "infinirex_radar",
+      "tape_xyz_m": [
+        0.8,
+        -0.3,
+        -0.11
+      ],
+      "uv_px": [
+        214.0,
+        405.0
+      ],
+      "image": "recordings\\CV1\\align_7\\snapshot_20261008_144257_594_raw.png"
+    },
+    {
+      "take": "align_8",
+      "label": "big CR",
+      "range_m": 0.8228,
+      "azimuth_deg": 3.659,
+      "xyz_m": [
+        0.821,
+        0.0525,
+        -0.01
+      ],
+      "frames_detected": 20,
+      "frames": 20,
+      "method": "infinirex_radar",
+      "tape_xyz_m": [
+        0.8,
+        0.0,
+        -0.01
+      ],
+      "uv_px": [
+        655.0,
+        298.0
+      ],
+      "image": "recordings\\CV1\\align_8\\snapshot_20261008_150720_751_raw.png"
+    },
+    {
+      "take": "align_9",
+      "label": "small CR 1",
+      "range_m": 0.8835,
+      "azimuth_deg": 17.195,
+      "xyz_m": [
+        0.8431,
+        0.2612,
+        0.04
+      ],
+      "frames_detected": 20,
+      "frames": 20,
+      "method": "infinirex_radar",
+      "tape_xyz_m": [
+        0.8,
+        0.2,
+        0.04
+      ],
+      "uv_px": [
+        932.0,
+        188.0
+      ],
+      "image": "recordings\\CV1\\align_9\\snapshot_20261008_150903_992_raw.png"
+    }
+  ],
+  "date": "2026-10-08 15:15"
+}

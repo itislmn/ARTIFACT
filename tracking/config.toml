@@ -1,0 +1,107 @@
+# tracking/config.toml - the one settings file of the tracking experiment (read with Python's tomllib).
+# Every value is either a physical fact of the set-up, a stated design level (alpha), or measured;
+# every program prints what the hardware actually delivered.
+
+session = "TR2"                  # recordings/<session>/ : radar references (background, calibration) and live takes
+
+[radar]                          # AWR2944PEVM (TDM demo flashed, QSPI boot) + DCA1000EVM
+cli_port = "COM4"                # XDS110 Class Application/User UART (Windows Device Manager)
+start_waveform = "search"        # waveform armed first
+r_min_m = 0.25                   # closer: TX-RX leakage (removed by the background, residual stays)
+r_max_m = 2.5                    # region of interest (lab); every range bin beyond is never computed
+y_min_m = -2.0                   # sideways limits of the region (left wall, right wall: measure them in the lab);
+y_max_m = 0.2                   # echoes beyond are walls or reflections through them
+mode = "subframes"               # "subframes": the [[subframe]] chirps PRELOADED in one advanced frame, armed once:
+                                 #   choosing a chirp costs NO blind time (it picks which sub-frame is processed);
+                                 # "reconfigure": the [[waveform]] library, changed by stop/restart (1.9-2.2 s blind per
+                                 #   change, measured on final_cog_1). The board falls back to the search chirp alone
+                                 #   if it rejects the advanced frame (said on the console).
+frame_ms = 105.0                 # the advanced frame: every [[subframe]] chirp once (3 x 128 loops = 87.6 ms of chirps +
+                                 # 5 ms after each sub-frame -> >= 102.6 ms); each sub-frame lasts its chirps + an equal
+                                 # share of the idle time (methods/radar_model.subframe_periods). 3 x 2.1 MB per frame =
+                                 # 60 MB/s on the Ethernet link (52 MB/s streamed loss-free so far: check the lost packets)
+look_policy = "cognitive"        # which sub-frames are processed (methods/chirp_choice.py, the same in obstacle/):
+                                 # "cognitive" (the plan with the lowest predicted uncertainty of the results that exist,
+                                 # processing time included), or the fixed baselines "search" (first chirp only), "all"
+reconfigure = true               # "reconfigure" mode only - false: the controller only DECIDES (logged), the chirps stay
+
+# Sub-frames ("subframes" mode, methods/radar_model.subframe_library): preloaded, in this order in every frame.
+# Same slope and ADC timing (range axis, wavelength, calibration, background, frame size on the wire stay); the first is
+# processed in every frame (the material classifier is trained on it). The library of the reconfigure mode below, without
+# its blind time: "search" = search, "track" = the same chirp twice per frame, "track_fast" = the fast chirp in between.
+[[subframe]]
+name = "search"                  # the verified base chirp = material_classification's chirp: v_max 3.8 m/s, dv 6.0 cm/s
+slope_mhz_us = 70.0
+idle_us = 26.5
+[[subframe]]
+name = "fast"                    # shorter idle time: v_max 5.2 m/s, dv 8.1 cm/s (armed live in final_cog_1 as "track_fast")
+slope_mhz_us = 70.0
+idle_us = 10.0
+
+# Waveform library ("reconfigure" mode and the takes recorded before the sub-frames; methods/radar_model.py). Only slope, idle time and frame period differ, so the frame size,
+# the band centre (wavelength, calibration) and the background stay valid; config/waveforms/<name>.cfg is generated.
+[[waveform]]
+name = "search"                  # the verified base chirp of estimation/ and computer_vision/ at 10 frames/s
+slope_mhz_us = 70.0
+idle_us = 26.5
+frame_ms = 100.0
+[[waveform]]
+name = "track"                   # same chirp, 20 frames/s: half the time between two looks at a moving object
+slope_mhz_us = 70.0
+idle_us = 26.5
+frame_ms = 50.0
+[[waveform]]
+name = "track_fast"              # shorter idle time: v_max 5.2 instead of 3.8 m/s (fast limbs, fast swing)
+slope_mhz_us = 70.0
+idle_us = 10.0
+frame_ms = 50.0
+# track_fine (100 MHz/us) removed: the board answers sensorStart with Error -1 for this profile (2026-10-08)
+
+[detection]
+alpha = 0.10                     # FDR level of every frame: expected share of false detections among all reported
+gate_pfa = 1e-3                  # false-alarm probability per range-Doppler cell of the search CFAR (OS-CFAR, median)
+gates_per_frame = 24             # at most this many range-Doppler cells get Infini-Rex per frame: inside the predicted
+                                 # regions first, then the strongest (time budget: ~1.3 ms per cell)
+
+[tracking]
+alpha = 0.10                     # prediction regions: P(next measurement outside) = alpha (conformal, distribution-free)
+aci_gamma = 0.02                 # adaptive conformal inference step (Gibbs & Candes 2021): how fast the level follows misses
+score_window = 300               # last scores used by the conformal quantile regression (pooled over tracks)
+accel_sigma_mps2 = 4.9           # white-noise acceleration of the motion model: g/2 (a pendulum bob reaches g sin(phi))
+confirm_hits = 3                 # a new track is confirmed after 3 hits ...
+confirm_window = 4               # ... in its first 4 frames (M-of-N rule)
+lost_after_s = 1.0               # a track not updated for this long is deleted
+object_extent_m = 0.6            # the largest object: a person incl. swinging arms/legs (+-0.3 m) fits in 0.6 m
+max_speed_mps = 1.0              # fastest object expected (walking 1-1.5 m/s, ball swing): initial speed uncertainty
+horizons_s = [0.5, 1.0]          # prediction regions further ahead ("where can the object be in 0.5 / 1 s")
+reacquire = true                 # after 1-2 missed frames: take the nearest echo of matching strength within reach
+doppler_sign = 1                 # +1: radial speed > 0 = moving away (IF phase +4 pi R / lambda; agreed with the
+                                 # range rate on the recorded walk). "auto": not used until the data decide it.
+
+[cognitive]
+horizon_s = 10.0                 # a waveform change must pay back its blind gap within this time (and no
+                                 # more than one change per horizon); a take lasts 30-60 s
+gap_s = 2.0                      # blind gap of a change: MEASURED on the board (final_cog_1: 1.9-2.2 s, 6 changes);
+                                 # the live run started from 1.0 s and switched once on a +0.1 bit gain that the
+                                 # real gap turns negative
+
+[ego]
+enabled = true                   # estimate the radar's own motion from static scatterers (radar moved by hand)
+
+[camera]                         # ISY IW-1000-1 on the radar; alignment from ../computer_vision/calibration
+name = "IW 1000-1"
+width = 1280
+height = 720
+exposure = "auto"
+crop_px = 360                    # side of the square crop panel of the tracked ball (pixels on screen)
+
+[ball]                           # the swinging ball with the text (for the crop; the radar measures azimuth only)
+diameter_m = 0.20
+centre_z_m = -0.03                 # height of the ball centre relative to the antenna centre at rest (m, up = +)
+swing_z_m = 0.10                 # extra height the ball can have during a swing (crop box covers it)
+label_m = [0.30, 0.12]           # region read for the text on the ball (w, h): the paper label is ~1.2 ball diameters
+                                 # wide (0.24 m) with ~3.5 cm letters; computer_vision's [text] region (0.45 x 0.20 m,
+                                 # a sheet on a table) also takes in the poster behind the ball and reads garbage
+
+[display]
+max_hz = 15

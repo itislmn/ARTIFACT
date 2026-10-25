@@ -1,38 +1,8 @@
 """
-measure_interactive.py - press Enter to advance, everything else is automatic.
+measure_interactive.py - stepwise pattern measurement, Enter at every angle: range window locked on the target,
+empty room subtracted coherently, energy of 3 range bins.
 
-    python measure_interactive.py --cli COM4 --cfg pattern_awr2944P.cfg ^
-        --cut azimuth --range-m 0.30 --start -90 --stop 90 --step 5 --background
-
-WHAT IS DIFFERENT FROM THE OLD VERSION (all aimed at short range in a messy lab)
---------------------------------------------------------------------------------
-1. The old version took the strongest range bin of the WHOLE profile at every
-   angle. At wide angles the target is weak, so it silently picked TX-RX
-   leakage / walls / furniture instead - a flat "shelf" of angle-independent
-   values that looks like antenna response but is not. Now the peak search is
-   restricted to a window around the target range, and after two good captures
-   the window LOCKS to +/- --gate-m around the range the target really showed
-   up at (the radar's measured range can differ from your tape measure).
-2. --background: you remove the target once, the script records the empty room
-   (coherently: complex, static part only), and subtracts it from every
-   measurement. TX-RX leakage and all static clutter cancel. At 30 cm the
-   leakage bin (~0.17 m) is only ~3 range bins from the target, so this matters.
-3. Energy of 3 range bins (peak +/-1) instead of a single bin, so a target that
-   sits between two bins does not lose up to ~1.4 dB (Hann scalloping).
-4. Coherent average over the chirps of every frame: only STATIC things survive,
-   so a person walking around during the capture averages out.
-5. The boresight angle is measured FIRST (target strongest -> reliable range
-   lock), then the sweep runs in normal order.
-6. Each reading also stores range_m, the prominence, the noise floor and the
-   un-subtracted gain. Nothing is thrown away; plot_pattern.py can draw either
-   version (--use raw) and shows the noise floor as a line.
-7. Safety check: if, after subtracting the empty-room reference, the target is
-   (almost) gone at boresight, the script warns that the reference probably
-   contained the target and may be erasing the real signal.
-
-Extra angles can be added any time: run again with a different --start/--step
-(e.g. --start -87.5 --stop 87.5 --step 5); readings are appended to the same log
-and plot_pattern.py merges them.
+    python measure_interactive.py --cli COM4 --cfg config/pattern_awr2944P.cfg --cut azimuth --range-m 0.30 --step 5 --background
 """
 import argparse
 import json
@@ -44,9 +14,9 @@ import numpy as np
 from capture_lib import preflight_check, capture_once, load_complex_cube, CaptureError
 from pattern_lib import static_spectrum, measure_static, reference_looks_wrong
 
-OUT_DIR = "output"
-SEARCH_HALF_WIDTH_M = 0.35     # initial search window around --range-m
-GOOD_PROMINENCE_DB = 10.0      # a capture this far above the noise floor counts as "found the target"
+OUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
+SEARCH_HALF_WIDTH_M = 0.35
+GOOD_PROMINENCE_DB = 10.0
 
 
 def target_position(angle_deg, range_m):
@@ -56,19 +26,16 @@ def target_position(angle_deg, range_m):
 
 
 def sweep_order(angles):
-    """Boresight-nearest angle first (best range lock), then the rest ascending."""
     i0 = int(np.argmin(np.abs(angles)))
     return [angles[i0]] + [a for i, a in enumerate(angles) if i != i0]
 
 
 def process_capture(bin_path, p, center_m, half_width_m, B=None):
-    cube = load_complex_cube(bin_path, p)          # (frames, loops, 16, samples)
+    cube = load_complex_cube(bin_path, p)
     return measure_static(static_spectrum(cube), B, p["range_axis"], center_m, half_width_m)
 
 
-# ----------------------------------------------------------------------
 def do_capture(args, bin_path):
-    """One capture with a single retry, same policy as before."""
     try:
         return capture_once(args.cli, args.cfg, args.seconds, bin_path)
     except CaptureError as e:
@@ -106,7 +73,7 @@ def main():
     args = ap.parse_args()
 
     os.makedirs(OUT_DIR, exist_ok=True)
-    name = args.cut + (f"_{args.tag}" if args.tag else "")      # file stem
+    name = args.cut + (f"_{args.tag}" if args.tag else "")
 
     print("Checking DCA1000 is reachable before asking you to move anything...")
     try:
@@ -126,7 +93,6 @@ def main():
     bin_path = os.path.join(OUT_DIR, "_last_capture.bin")
     bg_path = os.path.join(OUT_DIR, f"{name}_background.npy")
 
-    # ---------------- empty-room background ----------------
     B = None
     if args.background:
         print("=" * 60)
@@ -212,7 +178,7 @@ def main():
                 print("     The reference probably already contained the target (or a return at that")
                 print("     range), so the subtraction may be erasing the REAL signal. Re-record it")
                 print("     with the target truly removed - or plot the un-subtracted numbers, which")
-                print("     are stored too:  python plot_pattern.py --cut " + args.cut + (f" --tag {args.tag}" if args.tag else "") + " --use raw")
+                print("     are stored too (gain_raw_linear)")
 
         for ch in range(gains.shape[0]):
             tx, rx = ch // p["numRx"], ch % p["numRx"]
@@ -228,7 +194,7 @@ def main():
         print(f"  -> logged. Total readings for this cut so far: {len(log)}")
 
     print("\nSweep complete. Now run:")
-    print(f"  python plot_pattern.py --cut {args.cut}" + (f" --tag {args.tag}" if args.tag else ""))
+    print("  python run_all.py   (with the tag in dataset.TAGS)")
 
 
 if __name__ == "__main__":

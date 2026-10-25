@@ -114,8 +114,8 @@ def live_frame(view, f, m, tracks, ball, row, proj, cfg, trails, ball_rect, read
     if m is None:
         lines = [f"$t$ = {f.t_capture - t0:.1f} s{rec}", "", ""]
     else:
-        chirp = (f"chirps {' + '.join(m['looks'])} ({1e3 * len(m['looks']) / frame_ms_of(cfg):.0f} looks/s)" if m.get("looks")
-                 else CHIRP.get(m['waveform'], m['waveform']))
+        chirp = (f"{' + '.join(m['looks'])} ({1e3 * len(m['looks']) / frame_ms_of(cfg):.0f} looks/s), now: {m['waveform']}"
+                 if m.get("looks") else CHIRP.get(m['waveform'], m['waveform']))
         lines = [f"$t$ = {f.t_capture - t0:.1f} s     {chirp}{rec}",
                  f"{len(m['dets'])} detections (FDR level $α$ = {m.get('alpha', cfg['detection']['alpha']):.2f})     "
                  f"{len(tracks)} tracks",

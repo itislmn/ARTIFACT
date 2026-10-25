@@ -236,7 +236,7 @@ class Experiment:
             state, reason = "observe", f"the radar looks before the rail moves ({self.observe_s:.0f} s)"
         if self.paused:
             state, reason = "pause", "stopped by the operator (g = go on)"
-        looks = " + ".join(m.get("looks") or [m.get("chirp", "")]) if m else "-"
+        looks = " + ".join(m.get("looks") or [m.get("chirp", "")]) + f", now: {m.get('chirp', '')}" if m else "-"
         light = "no light"
         if ev is not None and ev.active:
             light = ("FLASHING light" if ev.flashing else "light on") + " - readings filtered"

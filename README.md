@@ -105,7 +105,7 @@ flowchart LR
 | FDR-controlled detection guided by tracks | Weighted e-BH with the trackers' prediction regions as prior weights: detection keeps its FDR bound while it looks where objects are expected. | Tracking, Obstacle |
 | KalmanCQR | Conformalised quantile regression of Kalman innovations with adaptive conformal inference: distribution-free regions for the next measurement. | Tracking, Obstacle |
 | M²-SRC | One sparse representation classifier with a material and a motion head on raw radar features. | Material Classification |
-| Cognitive chirp choice | Preloaded chirps processed by the predicted position entropy they save, never blind. | Tracking, Obstacle |
+| Cognitive chirp choice | A fast chirp is added to the search chirp whenever it reduces the predicted position uncertainty; all chirps are preloaded, so the radar is never blind. | Tracking, Obstacle |
 | MetricSight | Radar range as the scale of the camera image, so text is read at a fixed metric resolution. | Computer Vision |
 | Radar-anchored glare removal | The radar locates a lamp; its veil is fitted around that point and subtracted. | Computer Vision |
 | Scene understanding with guarantees | FDR-controlled detections, conformal regions and a planner on a moving platform, scored with Scene Panoptic Quality. | Obstacle |

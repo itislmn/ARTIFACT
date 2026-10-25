@@ -5,7 +5,7 @@ cognitively and checks everything against a camera.
 
 ![Tracks, prediction regions and the camera truth over time](output/figures/readme.svg)
 
-*On the same recording the cognitive chirp choice raises the live HOTA from 50 % (search chirp only) to 58 %, as much as processing every look, with the FDR of the detections at 0.02 for a level of 0.10.*
+*Instead of using only the chirp designed for searching, the cognitive design adds a fast chirp whenever it helps, so the tracks are updated twice as often: on the same recording the live tracking score (HOTA) rises from 50 % to 58 %, with 2 % false detections at a level of 10 %.*
 
 ## Commands
 
@@ -26,8 +26,9 @@ pip install -r requirements.txt
   $1 - \varepsilon = 90\,\%$, kept by $\varepsilon_{t+1} = \varepsilon_t + \gamma(\varepsilon - \mathrm{miss}_t)$.
 - **M²-SRC**: material and motion of every track from the classifier of `../material_classification`; a track's
   label is the majority of its windows.
-- **Cognitive chirp choice**: per frame the looks that minimise the predicted position entropy
-  $U = \frac1H\int \tfrac12\log_2((2\pi e)^2\det P_\mathrm{pos})\,dt$.
+- **Cognitive chirp choice**: every frame holds a search chirp and a fast chirp; the fast one is processed when it
+  lowers the predicted position uncertainty $U = \frac1H\int \tfrac12\log_2((2\pi e)^2\det P_\mathrm{pos})\,dt$ by
+  at least 1 bit.
 
 The camera is the ground truth: HOTA, MOTA and IDF1 per look and live, the FDR, the coverage of the regions and the
 classification scores (`tables.tex`); the look policies are compared on the same recording.

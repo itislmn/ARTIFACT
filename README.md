@@ -26,7 +26,11 @@ pip install -r requirements.txt
 python <experiment>/run_all.py
 ```
 
-The raw recordings (about 35 GB) are not part of the repository; the results, tables and figures are.
+In the commands of the experiments, `<take>` is a name you choose for a recording, `<session>` the folder that holds
+your takes, `<port>` the radar's CLI port (e.g. COM4) and `<data-port>` its data port.
+
+The raw recordings (about 35 GB) are not part of the repository, only each experiment's README figure; `run_all.py`
+recreates every table and figure from the recordings.
 
 ## Experiments
 

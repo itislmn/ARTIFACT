@@ -16,8 +16,8 @@ pip install -r requirements.txt
 | Command | What it does |
 | :--- | :--- |
 | `python run_all.py` | Features, evaluation, final model, tables and figures into `output/`. |
-| `python record_session.py --cli COM4 --plan B` | Guides through the takes of a session. |
-| `python run_realtime_sensing.py --cli COM4` | Classifies live with a dashboard. |
+| `python record_session.py --cli <port> --plan <plan>` | Guides through the takes of a session. |
+| `python run_realtime_sensing.py --cli <port>` | Classifies live with a dashboard. |
 
 - **Features**: 7 of the motion (micro-Doppler) and 7 of the material (echo strength and shape) per 1.6 s window.
 - **M²-SRC**: a window is coded sparsely over all training windows,
@@ -26,7 +26,8 @@ pip install -r requirements.txt
 
 ## How to Measure
 
-1. Record the empty room and one object at a time: `python record_session.py --cli COM4 --plan B`
+1. Record the empty room and one object at a time (`--list` shows the plans):
+   `python record_session.py --cli <port> --plan <plan>`
 2. Compute everything: `python run_all.py`
 
 ## Folder Structure

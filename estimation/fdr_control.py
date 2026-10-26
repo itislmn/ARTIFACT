@@ -34,7 +34,8 @@ from estimation.methods import WITH_ALPHA, doa_methods  # noqa: E402
 from estimation.simulation import draw_scene, render_frame  # noqa: E402
 
 CACHE = dataset.OUTPUT / "cache"
-METHODS = ["bh", "knockoffs", "knockoffs_lowdim", "ctrex_tlars", "ctrex_tomp", "trex_tlars", "infinirex", "infinirex_radar"]
+METHODS = ["bh", "by", "knockoffs", "knockoffs_offset0", "knockoffs_lowdim", "knockoffs_lowdim_offset0", "ctrex_tlars",
+           "ctrex_tomp", "trex_tlars", "infinirex", "infinirex_radar"]
 ALPHAS = [0.02, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.4, 0.5]
 SESSION_K = [1, 4, 16, 128]
 SIM_TRIALS = 40
@@ -95,8 +96,7 @@ def kept(name, methods, levels):
     path = CACHE / name
     if not path.exists():
         return []
-    return [r for r in dataset.read_csv(path) if r["method"] in METHODS
-            and not (r["method"] in methods and float(r["level"]) in levels)]
+    return [r for r in dataset.read_csv(path) if not (r["method"] in methods and float(r["level"]) in levels)]
 
 
 def main():

@@ -16,9 +16,9 @@ pip install -r requirements.txt
 | Command | What it does |
 | :--- | :--- |
 | `python run_all.py` | Reproduces every result in `output/` (`--videos` also renders the live view of every take). |
-| `python track_live.py --take run_1 --record --raw` | Runs the experiment live and records radar and camera. |
+| `python track_live.py --take <take> --record --raw` | Runs the experiment live and records radar and camera. |
 | `python radar_setup.py background` | Records the empty room the method compares against. |
-| `python replay.py recordings/TR2/run_1` | Runs the method again on a recorded take, exactly as live. |
+| `python replay.py recordings/<session>/<take>` | Runs the method again on a recorded take, exactly as live. |
 
 - **Detection (Infini-Rex, weighted e-BH)**: e-values per range-Doppler cell and angle; weighted e-BH keeps the false
   discovery rate at most $\alpha = 0.1$ per frame.
@@ -36,7 +36,7 @@ classification scores (`tables.tex`); the look policies are compared on the same
 ## How to Measure
 
 1. Record the empty room: `python radar_setup.py background`
-2. Record each scene: `python track_live.py --take run_1 --record --raw`
+2. Record each scene: `python track_live.py --take <take> --record --raw`
 3. Add the take to `dataset.py` and compute everything: `python run_all.py --videos`
 
 ## Folder Structure

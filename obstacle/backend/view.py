@@ -1,8 +1,8 @@
 """
 view.py - the live picture, the same on screen and in the recorded video, in tracking's style: the camera with each
 object's region box (frame = material, inner frame = motion, two tags) and where each measured object is, the scene
-from above with the detections, every track's prediction region and path in its material colour, the measured
-objects (dashed), the empty path, the rail's path, what the planner waits for or steps around, and the colour key.
+from above with the detections, every track's prediction region and path in its material colour, the empty path, the
+rail's path, what the planner waits for or steps around, and the colour key.
 
     from backend.view import ObstacleView
 """
@@ -92,17 +92,6 @@ FOCUS = OKABE["vermillion"]
 NORM = (34, 34, 34)
 
 
-def dashed(img, a, b, col, t: int = 1, on: int = 7, off: int = 5):
-    (x0, y0), (x1, y1) = a, b
-    for p, q in (((x0, y0), (x1, y0)), ((x1, y0), (x1, y1)), ((x1, y1), (x0, y1)), ((x0, y1), (x0, y0))):
-        n = float(np.hypot(q[0] - p[0], q[1] - p[1]))
-        for s0 in np.arange(0.0, n, on + off):
-            s1 = min(s0 + on, n)
-            c0 = (int(p[0] + (q[0] - p[0]) * s0 / max(n, 1)), int(p[1] + (q[1] - p[1]) * s0 / max(n, 1)))
-            c1 = (int(p[0] + (q[0] - p[0]) * s1 / max(n, 1)), int(p[1] + (q[1] - p[1]) * s1 / max(n, 1)))
-            cv2.line(img, c0, c1, col, t, cv2.LINE_AA)
-
-
 def px(lat: float, fwd: float):
     return TOP_X0 + (lat - LAT0) * K, TOP_Y0 + (FWD1 - fwd) * K
 
@@ -119,6 +108,10 @@ def style(o: dict) -> dict:
         c = o.get("classes") or {}
         o = {"material": (c.get("material") or {}).get("label"), "motion": (c.get("motion") or {}).get("label")}
     mat, mot = o.get("material"), o.get("motion")
+    if not mat and not mot and o.get("guess"):
+        g = o["guess"]
+        cm, cn = MATERIAL_COL.get(g["material"], MATERIAL_COL["none"]), MOTION_COL.get(g["motion"], MOTION_COL["none"])
+        return {"color": cm, "color2": cn, "tags": [(g["material"] + "?", cm), (g["motion"] + "?", cn)]}
     if not mat and not mot:
         g = MATERIAL_COL["none"]
         return {"color": g, "color2": None, "tags": [("not yet classified", g)]}
@@ -193,7 +186,7 @@ class ObstacleView:
             x = plates(dr, f, (x, ly - 10), [(name, MOTION_COL[name])], 14)[2] + 6
         ly += 30
         items = (("prediction region (90 %)", "reg"), ("track, last 3 s", "trk"), ("detection", "det"),
-                 ("obstacle box", "box"), ("measured object", "meas"), ("empty path (reference)", "room"),
+                 ("obstacle box", "box"), ("empty path (reference)", "room"),
                  ("rail path", "rail"), ("platform", "head"), ("waiting for / avoiding", "focus"))
         for i, (s, kind) in enumerate(items):
             lx, yy = TOP_X0 - 52 + (i % 2) * 200, ly + (i // 2) * 23
@@ -206,12 +199,6 @@ class ObstacleView:
                 dr.ellipse((lx - 3, yy - 3, lx + 3, yy + 3), fill=(130, 130, 130))
             elif kind == "box":
                 dr.rectangle((lx - 8, yy - 6, lx + 8, yy + 6), outline=MATERIAL_COL["metal"], width=2)
-            elif kind == "meas":
-                for x0 in range(lx - 8, lx + 8, 6):
-                    dr.line((x0, yy - 6, x0 + 3, yy - 6), fill=NORM)
-                    dr.line((x0, yy + 6, x0 + 3, yy + 6), fill=NORM)
-                dr.line((lx - 8, yy - 3, lx - 8, yy + 1), fill=NORM)
-                dr.line((lx + 8, yy - 3, lx + 8, yy + 1), fill=NORM)
             elif kind == "room":
                 dr.rectangle((lx - 8, yy - 6, lx + 8, yy + 6), fill=(215, 215, 215))
             elif kind == "rail":
@@ -235,9 +222,9 @@ class ObstacleView:
         for name, (u0, v0, u1, v1) in measured:
             c = (int((u0 + u1) / 2 * s), int((v0 + v1) / 2 * s))
             if 0 <= c[0] < cw and 0 <= c[1] < ch:
-                cv2.circle(cam, c, 6, (255, 255, 255), 3, cv2.LINE_AA)
-                cv2.circle(cam, c, 6, NORM, 1, cv2.LINE_AA)
-                names.append((name, (cx + c[0] + 10, cy + c[1])))
+                cv2.circle(cam, c, 5, (255, 255, 255), -1, cv2.LINE_AA)
+                cv2.circle(cam, c, 3, NORM, -1, cv2.LINE_AA)
+                names.append((name, (cx + c[0], cy + c[1])))
         for box in cam_boxes:
             u0, v0, u1, v1 = box["rect"]
             if not (0 <= (u0 + u1) / 2 < wc and 0 <= (v0 + v1) / 2 < hc):
@@ -256,7 +243,7 @@ class ObstacleView:
             for a in range(0, 360, 30):
                 cv2.ellipse(cam, c, (r, r), 0, a, a + 18, OKABE["orange"], 2, cv2.LINE_AA)
             cv2.drawMarker(cam, c, OKABE["orange"], cv2.MARKER_CROSS, 22, 2, cv2.LINE_AA)
-            labels.append(([("flash (camera)", OKABE["orange"])], (cx + c[0] + r + 4, cy + c[1] - 11)))
+            labels.append(([("flash", OKABE["orange"])], (cx + c[0] + r + 4, cy + c[1] - 11)))
         tlabels, focus_label = self._top(img, scene)
         x, y, w, h = CROP
         if crop_rect is not None:
@@ -272,12 +259,14 @@ class ObstacleView:
         dr = ImageDraw.Draw(pil)
         f = self.fonts
         nplaced = []
-        for name, (lx, ly) in names:
-            wt = dr.textlength(name, font=f.get(13))
-            lx = min(lx, cx + cw - wt - 2)
-            box = free([lx, ly - 8, lx + wt, ly + 8], nplaced, 17, cy + ch)
+        for name, (px0, py0) in names:
+            wt = dr.textlength(name, font=f.get(15)) + 10
+            lx = min(px0 + 14, cx + cw - wt - 2)
+            box = free([lx, py0 - 24, lx + wt, py0 - 2], nplaced, 24, cy + ch)
             nplaced.append(box)
-            f.text(dr, (box[0], box[1] + 8), name, 13, fill=NORM, anchor="lm", halo=2)
+            dr.line((px0, py0, box[0], box[3]), fill=NORM, width=1)
+            dr.rectangle(box, fill=(255, 255, 255), outline=NORM)
+            f.text(dr, (box[0] + 5, (box[1] + box[3]) / 2), name, 15, fill=NORM, anchor="lm")
         placed = [(cx, cy, cx + cw, cy + 50)] if banner else []
         for tags, (lx, ly) in labels:
             wt = plates_width(dr, f, tags, 15)
@@ -357,9 +346,6 @@ class ObstacleView:
                 rect(lo, hi, (215, 215, 215), fill=(215, 215, 215), t=1, alpha=0.6)
             elif o["kind"] == "static":
                 rect(lo, hi, style(o)["color"], t=2)
-        for lo, hi in scene.get("measured", []):
-            a, b = P(max(lo[1], LAT0), min(hi[0], FWD1)), P(min(hi[1], LAT1), max(lo[0], FWD0))
-            dashed(sub, (a[0] - 2, a[1] - 2), (b[0] + 2, b[1] + 2), NORM, 1, 4, 3)
         tracks = [q for q in scene.get("tracks", []) if q["confirmed"]]
         ov = sub.copy()
         for tr in tracks:

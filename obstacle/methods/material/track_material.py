@@ -41,8 +41,8 @@ class MaterialSRC:
     def ready(self) -> bool:
         return len(self.frames) == self.n_window
 
-    def classify(self, r_lo: float, r_hi: float, u_lo: float, u_hi: float, background) -> dict | None:
-        if not self.ready() or background is None or max(abs(u_lo), abs(u_hi)) > self.u_max:
+    def classify(self, r_lo: float, r_hi: float, u_lo: float, u_hi: float, background, anywhere: bool = False) -> dict | None:
+        if not self.ready() or background is None or (max(abs(u_lo), abs(u_hi)) > self.u_max and not anywhere):
             return None
         self.fx.gate = (self.rng >= r_lo - self.extent / 2) & (self.rng <= r_hi + self.extent / 2)
         self.fx.sector = self.pre.geo.uy_valid & (self.uy >= u_lo - 2 / 12) & (self.uy <= u_hi + 2 / 12)
@@ -73,16 +73,17 @@ class TrackMaterial:
         bg = self.reference.background_ra(min(xs), max(xs), pose) if mc.ready() else None
         offsets_ok = all(abs(p[1] - pose[1]) < 0.005 and abs(p[2] - pose[2]) < 0.005 for _, p in mc.frames)
         self.paused = "" if (bg is not None and offsets_ok) else "no empty scene from this side/height offset"
-        due = []
+        due, seen = [], []
         for tr in tracker.tracks:
             if not tr.confirmed:
                 continue
             tr.mat_pos = getattr(tr, "mat_pos", deque(maxlen=400))
             r = float(np.hypot(*tr.kf.s[:2]))
             tr.mat_pos.append((t, r, float(tr.kf.s[1] / max(r, 1e-6)), float(pose[0] + tr.kf.s[0]), float(pose[1] + tr.kf.s[1])))
-            if self.paused or not mc.ready() or tr.born > t0 or t - getattr(tr, "t_classified", -np.inf) < span / 2:
+            if self.paused or not mc.ready() or tr.born > t0 or sum(1 for q in tr.mat_pos if q[0] >= t0) < 0.8 * len(mc.frames):
                 continue
-            if sum(1 for q in tr.mat_pos if q[0] >= t0) >= 0.8 * len(mc.frames):
+            seen.append(tr)
+            if t - getattr(tr, "t_classified", -np.inf) >= span / 2:
                 due.append(tr)
         for tr in sorted(due, key=lambda q: getattr(q, "t_classified", -np.inf)):
             rr, u, wx, wy = np.array([q[1:] for q in tr.mat_pos if q[0] >= t0]).T
@@ -91,11 +92,21 @@ class TrackMaterial:
                    for q in tracker.tracks if q is not tr and q.confirmed and getattr(q, "mat_pos", None)):
                 continue
             moved = moved_over_ground(np.c_[wx, wy], mc.p.range_res_m)
-            out = mc.classify(rr.min(), rr.max(), u.min(), u.max(), bg)
+            out = mc.classify(rr.min(), rr.max(), u.min(), u.max(), bg, anywhere=moved)
             tr.t_classified = t
             if out is not None and out["detected"] and not (moved and out["motion"] == "static"):
                 tr.mat_votes = getattr(tr, "mat_votes", None) or LabelVotes()
                 tr.classes = tr.mat_votes.add(out)
                 tr.window = out["features"]
             break
+        else:
+            guess = [q for q in seen if not q.classes and t - getattr(q, "t_guess", -np.inf) >= span / 2]
+            if guess:
+                tr = min(guess, key=lambda q: getattr(q, "t_guess", -np.inf))
+                tr.t_guess = t
+                rr, u, wx, wy = np.array([q[1:] for q in tr.mat_pos if q[0] >= t0]).T
+                out = mc.classify(rr.min(), rr.max(), u.min(), u.max(), bg, anywhere=True)
+                if out is not None and out["detected"] and not (moved_over_ground(np.c_[wx, wy], mc.p.range_res_m)
+                                                                and out["motion"] == "static"):
+                    tr.guess = {"material": out["material"], "motion": out["motion"]}
         return fp

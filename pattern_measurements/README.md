@@ -15,9 +15,9 @@ pip install -r requirements.txt
 | Command | What it does |
 | :--- | :--- |
 | `python run_all.py` | Computes every result from the recorded sweeps into `output/`. |
-| `python measure_continuous.py --cli COM4 --cfg config/pattern_awr2944P.cfg --cut azimuth --tag air --background` | Records one continuous sweep. |
-| `python measure_interactive.py --cli COM4 --cfg config/pattern_awr2944P.cfg --cut azimuth --step 5 --background` | Records a stepwise sweep. |
-| `python diagnose_channels.py --cli COM4 --cfg config/pattern_awr2944P.cfg` | Checks every channel at boresight. |
+| `python measure_continuous.py --cli <port> --cfg config/pattern_awr2944P.cfg --cut azimuth --tag <label> --background` | Records one continuous sweep. |
+| `python measure_interactive.py --cli <port> --cfg config/pattern_awr2944P.cfg --cut azimuth --step 5 --background` | Records a stepwise sweep. |
+| `python diagnose_channels.py --cli <port> --cfg config/pattern_awr2944P.cfg` | Checks every channel at boresight. |
 
 - **One reading**: the empty room subtracted, then the target's energy per channel,
   $A_v = \sqrt{\sum_{|k-k^\star|\le1}|Y_v[k]|^2}$.
@@ -27,8 +27,8 @@ pip install -r requirements.txt
 
 1. Set up the radar as in `../radar_tutorial` and place a corner reflector at boresight.
 2. Sweep the radar slowly through ±90° and mark every 30°:
-   `python measure_continuous.py --cli COM4 --cfg config/pattern_awr2944P.cfg --cut azimuth --tag air --background`
-3. Repeat with each radome and its own tag (`--tag pla`, `--tag petg`).
+   `python measure_continuous.py --cli <port> --cfg config/pattern_awr2944P.cfg --cut azimuth --tag <label> --background`
+3. Repeat with each radome under its own label (e.g. `air`, `pla`, `petg`).
 4. Compute everything: `python run_all.py`
 
 ## Folder Structure

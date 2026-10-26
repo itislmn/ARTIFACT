@@ -271,12 +271,15 @@ def waits(takes: list[Take]) -> dict:
 def light(takes: list[Take]) -> dict:
     tp = n_on = n_true = 0
     latency, reads = [], []
+    lit_frames = anchored = 0
     for tk in takes:
         truth_on = [a for name in ("light", "flashing") for a, _ in tk.events.get(name, [])]
         lit = [iv for name in ("light", "flashing") for iv in tk.events.get(name, [])]
         on = [float(r["t"]) for r in tk.camera if r.get("onset") == "1"]
         n_on += len(on)
         n_true += len(truth_on)
+        lit_frames += sum(r.get("light") == "1" for r in tk.camera)
+        anchored += sum(r.get("light") == "1" and r.get("light_source") not in (None, "") for r in tk.camera)
         tp += sum(any(a - 0.2 <= t <= b + 1.0 for a, b in lit) for t in on)
         latency += [min(t - a for t in on if -0.2 <= t - a <= 1.0) for a in truth_on if any(-0.2 <= t - a <= 1.0 for t in on)]
         for r in tk.readings:
@@ -299,7 +302,7 @@ def light(takes: list[Take]) -> dict:
         return float(x.mean()), float(np.quantile(b, 0.025)), float(np.quantile(b, 0.975)), len(x)
     return {"onsets": n_on, "truth": n_true, "precision_ci": wilson(tp, n_on), "precision": tp / n_on if n_on else np.nan,
             "recall": len(latency) / n_true if n_true else np.nan, "recall_ci": wilson(len(latency), n_true),
-            "latency_s": np.array(latency), "reads": reads,
+            "latency_s": np.array(latency), "reads": reads, "anchored": anchored / lit_frames if lit_frames else np.nan,
             "dark": mean_ci(share[~lit]) if len(reads) else mean_ci([]), "lit_accepted": mean_ci(share[lit & acc]),
             "lit_rejected": mean_ci(share[lit & ~acc]), "accepted": mean_ci(share[acc]), "all": mean_ci(share),
             "three_accepted": wilson(int(np.sum((share[acc] * 8) >= 3)), int(acc.sum())) if len(reads) else (np.nan, np.nan),

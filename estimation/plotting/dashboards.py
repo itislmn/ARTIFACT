@@ -197,7 +197,7 @@ def dashboards(session, meas, snap, sw_m):
             style.title(fig, f"{lab(m.name)}: Measured Take {tt(TAKE)}")
             style.save(pdf, fig)
             curves = {K: sorted((a, v[0]) for (mm, a), v in tab.items() if mm == m.name) for K, tab in sweeps.items()}
-            nominal = guaranteed(m.name) and any(curves.values())
+            nominal = (guaranteed(m.name) or m.name in ("knockoffs", "knockoffs_offset0")) and any(curves.values())
             if nominal:
                 fig, axs = plt.subplots(2, 2, figsize=style.size(style.DOUBLE, 0.62), layout="constrained")
             else:
@@ -217,7 +217,7 @@ def dashboards(session, meas, snap, sw_m):
                 style.title(ax, {"FDR": "FDR vs.\\ $K$", "TPR": "TPR vs.\\ $K$", "RMSE": r"Angle RMSE vs.\ $K$"}[metric])
             if nominal:
                 ax = axs[1, 1]
-                nominal_axes(ax, "FDP")
+                nominal_axes(ax, "FDP", max([0.55] + [v + 0.05 for pts in curves.values() for _, v in pts]))
                 for K, pts in curves.items():
                     ax.plot([p[0] for p in pts], [p[1] for p in pts], "o-" if K == 1 else "D:", ms=4,
                             color=style.PRIMARY if K == 1 else style.ACCENT, label=f"Measured, $K = {K}$")

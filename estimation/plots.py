@@ -31,7 +31,7 @@ def main():
     meas, snr, snap = (load(f"records_{s}") for s in ("measured", "snr", "snapshots"))
     sw_m, sw_s, comp = load("sweep_measured"), load("sweep_simulation"), load("complexity")
     guar, r_meas, r_prec, r_res = load("guarantee"), load("range_measured"), load("range_precision"), load("range_resolution")
-    orders = load("model_order")
+    orders, mx = load("model_order"), load("model_x_check")
     preds, rows = load("predictions_measured"), dataset.read_csv(dataset.OUTPUT / "dataset.csv")
     session = dataset.load(dataset.MEASURED)
     checks = load("checks_measured")
@@ -50,7 +50,7 @@ def main():
             ("simulation", "snapshots", lambda pdf: simulation.snapshots(pdf, snap)) if snap else None,
             ("simulation", "fdr_control", lambda pdf: simulation.fdr_control(pdf, sw_s)) if sw_s else None,
             ("simulation", "range", lambda pdf: simulation.range_estimation(pdf, r_prec, r_res)) if r_prec and r_res else None,
-            ("simulation", "computation", lambda pdf: simulation.computation(pdf, comp, meas)) if comp and meas else None,
+            ("simulation", "model_x", lambda pdf: simulation.model_x_check(pdf, mx)) if mx else None,            ("simulation", "computation", lambda pdf: simulation.computation(pdf, comp, meas)) if comp and meas else None,
             ("simulation", "all_methods", lambda pdf: simulation.everything(pdf, snr)) if snr else None]
     only = sys.argv[1:]
     for folder, name, draw in filter(None, jobs):

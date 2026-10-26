@@ -18,8 +18,8 @@ pip install -r requirements.txt
 | `python run_all.py` | Evaluates the method and its baselines on every recorded run into `output/`. |
 | `python experiment.py check --move` | Checks rail, radar and camera. |
 | `python experiment.py reference` | Records the empty path along the whole rail. |
-| `python experiment.py run --take run_1 --read --raw` | Runs the experiment live and records it. |
-| `python annotate.py OB2/run_1` | Marks the events of a run on its video. |
+| `python experiment.py run --take <take> --read --raw` | Runs the experiment live and records it. |
+| `python annotate.py <session>/<take>` | Marks the events of a run on its video. |
 
 - **Detection**: Infini-Rex e-values and weighted e-BH keep the FDR of every look at most $\alpha = 0.1$.
 - **Tracking and classes**: the tracker, KalmanCQR and M²-SRC of `../tracking`.
@@ -32,10 +32,10 @@ pip install -r requirements.txt
 ## How to Measure
 
 1. Zero the rail with `../isel` and check everything: `python experiment.py check --move`
-2. Calibrate and record the empty path: `python experiment.py calibrate --target-xyz 1.00:0.00:0.00`, then
+2. Calibrate and record the empty path: `python experiment.py calibrate --target-xyz x:y:z`, then
    `python experiment.py reference`
-3. Place the scene and record each run: `python experiment.py run --take run_1 --read --raw`
-4. Measure the objects into the run's `scene.json` and mark its events: `python annotate.py OB2/run_1`
+3. Place the scene and record each run: `python experiment.py run --take <take> --read --raw`
+4. Measure the objects into the run's `scene.json` and mark its events: `python annotate.py <session>/<take>`
 5. Evaluate everything: `python run_all.py`
 
 ## Folder Structure

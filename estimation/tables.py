@@ -1,6 +1,7 @@
 """
 tables.py - the booktabs tables of the thesis in output/tables.tex, one \\newcommand each (takes, measured results,
-simulation results, complexity, every method): the thesis does \\input{tables.tex} once and uses the commands.
+simulation results, complexity, every method, Model-X under its own assumption): the thesis does \\input{tables.tex}
+once and uses the commands.
 
     python tables.py
 """
@@ -77,8 +78,31 @@ def simulation_table(snr, snap):
             r"\cmidrule(lr){2-3}\cmidrule(lr){4-5}\cmidrule(lr){6-6}\cmidrule(lr){7-8}" + "\n")
 
 
-def complexity_table(comp):
+def model_x_table(rows, comp):
+    levels = (0.1, 0.25, 0.5)
+    radar = {r["method"]: 1e3 * common.num(r["seconds_per_gate"]) for r in comp if r["sweep"] == "p" and int(r["p"]) == 83}
     lab = labels()
+    body = []
+    for m in ("knockoffs", "knockoffs_offset0"):
+        sub = [r for r in rows if r["method"] == m]
+        cells = []
+        for a in levels:
+            at = [r for r in sub if common.num(r["level"]) == a]
+            cells += [f(np.mean([common.num(r["FDP"]) for r in at])), f(np.mean([common.num(r["TPP"]) for r in at]))]
+        ms = np.median([common.num(r["ms"]) for r in sub if common.num(r["level"]) == levels[0]])
+        body.append([lab[m]] + cells + [f(ms, 1), f(radar.get(m, np.nan), 1)])
+    cols = ["Method", "FDR", "TPR", "FDR", "TPR", "FDR", "TPR", "ms/gate", "ms/gate, steering matrix"]
+    return table("estModelX", cols, body, "lrrrrrrrr").replace(r"\toprule" + "\n",
+            r"\toprule" + "\n" + r" & \multicolumn{2}{c}{$\alpha = 0.1$} & \multicolumn{2}{c}{$\alpha = 0.25$} & "
+            r"\multicolumn{2}{c}{$\alpha = 0.5$} & & \\" + "\n" + r"\cmidrule(lr){2-3}\cmidrule(lr){4-5}\cmidrule(lr){6-7}" + "\n")
+
+
+def complexity_table(comp, meas=()):
+    lab = labels()
+    steps = {}
+    for r in meas:
+        if int(r["K"]) == 1 and common.num(r["steps"]) > 0 and common.num(r["n_gates"]) > 0:
+            steps.setdefault(r["method"], []).append(common.num(r["steps"]) / common.num(r["n_gates"]))
     rows = []
     for m in doa_methods():
         r = next((r for r in comp if r["method"] == m.name and r["sweep"] == "p" and int(r["p"]) == 83), None)
@@ -88,8 +112,9 @@ def complexity_table(comp):
         an = complexity.exponent(comp, m.name, "n", "n")
         order = ORDER.get(m.name, TREX_ORDER if m.family in ("ctrex", "trex") else "--")
         rows.append([lab[m.name], f(1e3 * common.num(r["seconds_per_gate"]), 2), f(common.num(r["peak_mb_per_gate"]), 2),
-                     f(ap), f(an), order])
-    return table("estComplexity", ["Method", "ms/gate", "MB/gate", r"$a_p$", r"$a_n$", "Order"], rows, "lrrrrl")
+                     f(np.median(steps[m.name]), 0) if m.name in steps else "--", f(ap), f(an), order])
+    return table("estComplexity", ["Method", "ms/gate", "MB/gate", "Steps/gate", r"$a_p$", r"$a_n$", "Order"], rows,
+                 "lrrrrrl")
 
 
 def appendix_table(meas):
@@ -127,7 +152,10 @@ def main():
     if snr and snap:
         parts.append(simulation_table(snr, snap))
     if comp:
-        parts.append(complexity_table(comp))
+        parts.append(complexity_table(comp, meas or ()))
+    mx = common.load("model_x_check")
+    if mx and comp:
+        parts.append(model_x_table(mx, comp))
     rng = [common.load(n) for n in ("range_measured", "range_precision", "range_resolution")]
     if all(rng):
         parts.append(range_table(*rng))

@@ -222,8 +222,9 @@ class Experiment:
         cam_measured = []
         for q in [q for q in measured if q.kind != "lamp"] if proj is not None else []:
             o = {"lo": q.lo, "hi": q.hi, "centre": (q.lo + q.hi) / 2, "z_known": True}
+            ahead = q.lo[0] - pose[0] > cfg["radar"]["r_min_m"]
             r = att.rect(proj, o, pose, cfg["alignment"]["bar_z_m"]) \
-                if att.in_picture(proj, o, pose, cfg["text"]["centre_z_m"], size) else None
+                if ahead and att.in_picture(proj, o, pose, cfg["text"]["centre_z_m"], size) else None
             if r is not None:
                 cam_measured.append((q.label, r))
         light_uv = None
@@ -237,16 +238,14 @@ class Experiment:
         if self.paused:
             state, reason = "pause", "stopped by the operator (g = go on)"
         looks = " + ".join(m.get("looks") or [m.get("chirp", "")]) + f", now: {m.get('chirp', '')}" if m else "-"
-        light = "no light"
-        if ev is not None and ev.active:
-            light = ("FLASHING light" if ev.flashing else "light on") + " - readings filtered"
+        light = "light detected - readings filtered     " if ev is not None and ev.active else ""
         read = self.stable.text
         k = correct_chars(read, self.truth) if (self.truth and read) else None
         rail = f"look {m['ms'] if m else 0:.0f} ms"
         lines = [f"$t$ = {t:.1f} s     {state}: {reason}",
                  f"radar: {len(m['dets'])} detections at FDR $α$ = {cfg['detection']['alpha']:.2f}, "
                  f"{sum(q["confirmed"] for q in tracks)} tracks     chirps: {looks}" if m else "radar: -",
-                 f"camera: {light}     attention: {role or '-'} {target['id'] if target else ''}     "
+                 f"camera: {light}attention: {role or '-'} {target['id'] if target else ''}     "
                  + (f"read: {read}" + (f" ({k}/{len(self.truth)})" if k is not None else "") if read else "read: -"),
                  f"rail: $x$ = {1e3 * pose[0]:.0f} mm, $y$ = {1e3 * pose[1]:+.0f} mm, $z$ = {1e3 * pose[2]:+.0f} mm     {rail}"]
         banner, col = None, None
@@ -262,8 +261,8 @@ class Experiment:
         plan["target"] = None if (cmd is None or cmd.target is None) else list(cmd.target)
         scene = {"pose": pose, "objects": m["objects"] if m else [], "dets": m["dets"] if m else [], "plan": plan,
                  "trail": list(self.trail)[-600:], "tracks": tracks, "focus": fo,
-                 "det_hist": [(y, x, tid) for _, tid, y, x in self.det_hist], "measured": [(q.lo, q.hi) for q in measured]}
-        light_tag = ("flashing light detected" if ev.flashing else "light detected") if ev is not None and ev.active else None
+                 "det_hist": [(y, x, tid) for _, tid, y, x in self.det_hist]}
+        light_tag = "light detected" if ev is not None and ev.active else None
         return self.view.frame(rgb, boxes, rect, light_uv, scene, lines, banner, col,
                                crop_title=f"attention: {role} {target['id']}" if target else "attention: -", light_tag=light_tag,
                                light_r=_light_r(self.glare) if self.glare is not None else 0.0, measured=cam_measured)

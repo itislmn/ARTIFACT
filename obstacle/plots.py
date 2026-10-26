@@ -616,7 +616,7 @@ def _box(ax, data, pos, color, width=0.28):
 
 def understanding(res, pdf):
     u, s = res["understanding"], res["separation"]
-    kinds = [k for k in ("obstacle", "lamp", "ball", "person") if k in u["kinds"]]
+    kinds = [k for k in ("obstacle", "ball", "person") if k in u["kinds"]]
     n = 3 if s["pairs"] else 2
     fig, axs = plt.subplots(1, n, figsize=(DOUBLE, 2.6), layout="constrained", gridspec_kw={"width_ratios": [2.1, 2.1, 1][:n]})
     ax = axs[0]
@@ -745,12 +745,12 @@ def readme_figure(res, path):
                       [Patch(facecolor="none", edgecolor=GOAL, ls="-.", label="measured object"),
                        Patch(color=MUTED, alpha=0.35, label="known room"), Line2D([], [], color=NORM, lw=3, label="radar on the rail")],
               loc="outside lower center", ncols=6)
-    understanding_bars(axs[1], res["understanding"])
+    understanding_bars(axs[1], res["understanding"], res["light"])
     style.save(path, fig)
 
 
-def understanding_bars(ax, u):
-    kinds = [k for k in ("obstacle", "lamp", "ball", "person") if k in u["kinds"]]
+def understanding_bars(ax, u, light):
+    kinds = [k for k in ("obstacle", "ball", "person") if k in u["kinds"]]
     steps = (("recall", "found as its kind"), ("sq", "located (SQ)"), ("material_acc", "material"), ("person_acc", "person label"))
     w = 0.8 / len(steps)
     for i, k in enumerate(kinds):
@@ -758,10 +758,16 @@ def understanding_bars(ax, u):
             v = u["kinds"][k][key]
             ax.bar(i + (j - 1.5) * w, v if np.isfinite(v) else 0, w * 0.92, color=SERIES[j], hatch=style.HATCHES[j],
                    edgecolor="white", lw=0.3, label=lbl if i == 0 else None)
+    n = len(kinds)
+    ax.bar(n - w / 2, np.nan_to_num(light["recall"]), w * 0.92, color=GOAL, edgecolor="white", lw=0.3, label="light detected")
+    ax.bar(n + w / 2, np.nan_to_num(light["anchored"]), w * 0.92, color=PRIMARY, hatch="///", edgecolor="white", lw=0.3,
+           label="light on a radar object")
+    ax.bar(n + 1, np.nan_to_num(light["dark"][0]), w * 0.92, color=MUTED, edgecolor="white", lw=0.3, label="letters read right")
+    kinds = kinds + ["light (camera)", "reading"]
     ax.set_xticks(range(len(kinds)), kinds)
     ax.set_ylim(0, 1.32)
     ax.set_yticks([0, 0.2, 0.4, 0.6, 0.8, 1.0])
-    ax.set_ylabel("Share of Radar Looks (Fraction)")
+    ax.set_ylabel("Share Understood (Fraction)")
     title(ax, "What It Understood")
     ax.legend(loc="upper center", ncols=2)
 

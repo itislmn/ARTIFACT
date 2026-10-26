@@ -244,8 +244,8 @@ def overview(pdf, table, title_text, methods, Ks=(1, 128)):
     style.save(pdf, fig)
 
 
-ALPHA_METHODS = ["bh", "by", "knockoffs", "knockoffs_lowdim", "knockoffs_lowdim_offset0", "ctrex_tlars", "ctrex_tomp",
-                 "trex_tlars", "infinirex", "infinirex_radar"]
+ALPHA_METHODS = ["bh", "by", "knockoffs", "knockoffs_offset0", "knockoffs_lowdim", "knockoffs_lowdim_offset0",
+                 "ctrex_tlars", "ctrex_tomp", "trex_tlars", "infinirex", "infinirex_radar"]
 
 
 def nominal_axes(ax, metric, top=0.55):

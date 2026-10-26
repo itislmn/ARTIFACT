@@ -38,6 +38,8 @@ def crop_rect(proj, o: dict, pose, z_default: float, size_m: float) -> tuple | N
 
 
 def in_picture(proj, o: dict, pose, z_default: float, size_wh) -> bool:
+    if o["centre"][0] <= pose[0]:
+        return False
     uv, _ = centre_uv(proj, o, pose, z_default)
     return uv is not None and 0 <= uv[0] < size_wh[0] and 0 <= uv[1] < size_wh[1]
 

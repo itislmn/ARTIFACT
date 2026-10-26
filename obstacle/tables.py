@@ -132,7 +132,8 @@ def render(res: dict, p: str = "ob") -> str:
     share = lambda v, n: f"{f(v, 0, True)}\\,\\% of {n}" if n else "none"
     body = [["Light onsets that were real", share(li["precision"], li["onsets"]), ci(li["precision_ci"])],
             ["Real light events detected", share(li["recall"], li["truth"]), ci(li["recall_ci"])],
-            ["Light on $\\to$ detected (s, median)", med(li["latency_s"]), "--"], "mid"]
+            ["Light on $\\to$ detected (s, median)", med(li["latency_s"]), "--"],
+            ["Lit frames with the light on a radar object (radar-anchored)", f(li["anchored"], 1, True) + r"\,\%", "--"], "mid"]
     for key, lbl_ in (("dark", "Letters read right, no light"), ("lit_accepted", "Letters read right, light, kept"),
                       ("lit_rejected", "Letters read right, light, filtered out")):
         m = li[key]

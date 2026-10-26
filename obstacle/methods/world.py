@@ -44,6 +44,7 @@ class StaticObject:
     last_seen: float = 0.0
     absent_s: float = 0.0
     classes: dict = field(default_factory=dict)
+    guess: dict | None = None
     lo: np.ndarray = field(default_factory=lambda: np.zeros(3))
     hi: np.ndarray = field(default_factory=lambda: np.zeros(3))
     z_known: bool = False
@@ -116,6 +117,7 @@ class World:
                     so.refit()
                     so.last_seen, so.absent_s = (t, 0.0) if ds else (so.last_seen, so.absent_s)
                     so.classes = tr.classes or so.classes
+                    so.guess = getattr(tr, "guess", None) or so.guess
                 self.boxes.pop(tid, None)
             else:
                 so = self.static.pop(tid, None)
@@ -197,6 +199,7 @@ class World:
         return {"id": tr.id, "kind": "moving", "still": bool(still), "lo": lo.tolist(), "hi": hi.tolist(),
                 "z_known": bool(zs) or person,
                 "person": person, "material": label(tr.classes, "material"), "motion": label(tr.classes, "motion"),
+                "guess": getattr(tr, "guess", None),
                 "speed": float(np.hypot(tr.kf.s[2], tr.kf.s[3])), "v": [float(tr.kf.s[2]), float(tr.kf.s[3])],
                 "regions": regions, "calibrated": bool(calibrated), "reach_m": reach_m,
                 "footprint": [flo.tolist(), fhi.tolist()], "live": True, "n_points": len(ds),
@@ -223,7 +226,7 @@ class World:
         c = np.where(fin, (np.where(fin, so.lo, 0) + np.where(fin, so.hi, 0)) / 2, 0.0)
         return {"id": so.id, "kind": "static", "lo": so.lo.tolist(), "hi": so.hi.tolist(), "z_known": so.z_known,
                 "person": self._person(so.classes), "material": label(so.classes, "material"),
-                "motion": label(so.classes, "motion"), "speed": 0.0, "live": live, "n_points": len(so.points),
+                "motion": label(so.classes, "motion"), "guess": so.guess, "speed": 0.0, "live": live, "n_points": len(so.points),
                 "last_seen": so.last_seen, "centre": c.tolist()}
 
     def set_known(self, reference) -> int:

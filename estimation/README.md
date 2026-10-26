@@ -16,16 +16,15 @@ pip install -r requirements.txt
 | Command | What it does |
 | :--- | :--- |
 | `python run_all.py` | Runs every method on the measured session and the simulations into `output/`. |
-| `python capture.py --cli COM4 --session S2 --plan config/session_plan.json --name <take>` | Records one take with its ground truth. |
+| `python capture.py --cli <port> --session <session> --plan config/session_plan.json --name <take>` | Records one take with its ground truth. |
 
 One range gate of the 12-element azimuth row is a sparse regression, $\bar{\mathbf y} = \mathbf X\boldsymbol\beta +
 \boldsymbol\varepsilon$, with one column of $\mathbf X$ per grid angle; a selected angle is a detected reflector.
 
 - **Classical**: Bartlett, Capon, MUSIC, ESPRIT, CA- and OS-CFAR.
 - **Learned**: a small neural network trained on simulated gates.
-- **FDR control**: Benjamini–Hochberg, Benjamini–Yekutieli, Fixed-X knockoff+, T-Rex and CT-Rex keep
-  $\mathrm{FDR} = \mathbb E[V/\max(R,1)] \le \alpha$ when the array model holds; Model-X and offset-0 knockoffs take a
-  level without this guarantee.
+- **FDR control**: Benjamini–Hochberg, Benjamini–Yekutieli, Fixed-X and Model-X (Gaussian) knockoffs, T-Rex and
+  CT-Rex, each at a level $\alpha$ for $\mathrm{FDR} = \mathbb E[V/\max(R,1)]$.
 - **Infini-Rex**: the random dummies of T-Rex in closed form, $P_t = (1-\rho_t)^{n-1}$, turned into e-values for e-BH,
   so one selection path replaces many random experiments.
 - **Range**: the FFT bin centre, the FFT with a parabola through the peak (the estimator of tracking and obstacle) and
@@ -36,7 +35,7 @@ One range gate of the 12-element azimuth row is a sparse regression, $\bar{\math
 
 1. Connect the radar and the DCA1000 as in `../radar_tutorial`.
 2. Tape every reflector's position and record the takes of the plan:
-   `python capture.py --cli COM4 --session S2 --plan config/session_plan.json --name <take> --target-xy "x:y:label"`
+   `python capture.py --cli <port> --session <session> --plan config/session_plan.json --name <take> --target-xy "x:y:label"`
 3. Compute everything: `python run_all.py`
 
 ## Folder Structure
@@ -49,6 +48,7 @@ estimation/
 ├── fdr_control.py  guarantee.py   achieved FDR, on and off the angle grid
 ├── ranging.py  complexity.py      range estimators, time and memory
 ├── model_order.py                 why the classical methods over-count on measured data
+├── model_x_check.py               Model-X knockoffs on a Gaussian design
 ├── tables.py  plots.py  plotting/ tables and figures
 ├── core/                          radar, array, range gates, truth, metrics
 ├── methods/                       one file per method

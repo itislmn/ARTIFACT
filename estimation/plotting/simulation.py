@@ -19,7 +19,7 @@ from estimation.core.radar import RadarConfig
 from estimation.methods import CORE, doa_methods
 from estimation.methods.infinirex import continuous_path, dummy_win_prob, omp_path, whitening
 from estimation.plotting.common import (LOOK, all_methods, alpha_diagonal, alpha_line, by_k, by_snr, dodge,
-                                        guarantee_key, lab, line, metric_vs, needed_k, num, overview)
+                                        guarantee_key, lab, line, metric_vs, needed_k, nominal_axes, num, overview)
 from estimation.ranging import crb_range_m
 from visualization import style
 
@@ -122,6 +122,35 @@ def fdr_control(pdf, sw_s):
         alpha_diagonal(pdf, sw_s, f"{TITLE}, {what}", sc)
 
 
+def model_x_check(pdf, rows):
+    fig, axs = plt.subplots(1, 3, figsize=style.size(style.DOUBLE, 0.36), layout="constrained",
+                            gridspec_kw={"width_ratios": [1, 1, 0.8]})
+    methods = ("knockoffs", "knockoffs_offset0")
+    levels = sorted({num(r["level"]) for r in rows})
+    for metric, ax in (("FDP", axs[0]), ("TPP", axs[1])):
+        nominal_axes(ax, metric)
+        for m in methods:
+            line(ax, levels, [np.mean([num(r[metric]) for r in rows if r["method"] == m and num(r["level"]) == a])
+                              for a in levels], m)
+        ax.set_xlabel(r"Nominal Level $\alpha$")
+    mfdr = [np.mean([num(r["V"]) / (num(r["R"]) + 1 / a) for r in rows if r["method"] == methods[1] and num(r["level"]) == a])
+            for a in levels]
+    axs[0].plot(levels, mfdr, color=LOOK[methods[1]][0], ls="-", lw=0.9, label="Offset 0: Modified FDR")
+    axs[0].set_ylabel(r"Achieved $\widehat{\mathrm{FDR}}$")
+    axs[1].set_ylabel("TPR")
+    style.title(axs[0], "FDR")
+    style.title(axs[1], "TPR")
+    ms = np.array([num(r["ms"]) for r in rows if r["method"] == methods[0] and num(r["level"]) == levels[0]])
+    axs[2].hist(ms, bins=30, color=style.PRIMARY)
+    axs[2].axvline(np.median(ms), color=style.NORM, ls="--", lw=0.9, label=f"Median {np.median(ms):.0f} ms")
+    axs[2].set_xlabel("Time per Gate [ms]")
+    axs[2].set_ylabel("Scenes")
+    style.title(axs[2], "Run Time (One Core)")
+    style.legend_below(fig, axs, ncols=4)
+    style.title(fig, f"{TITLE}: Model-X Knockoffs Where Their Assumption Holds")
+    style.save(pdf, fig)
+
+
 def range_estimation(pdf, precision, resolution):
     cfg = RadarConfig.from_cfg(dataset.CFG)
     fig, axs = plt.subplots(1, 2, figsize=style.size(style.DOUBLE, 0.42), layout="constrained")
@@ -221,6 +250,30 @@ def computation(pdf, comp, meas):
     np.atleast_1d(axs)[0].set_ylabel("Median Time per Gate [ms]")
     style.legend_below(fig, np.atleast_1d(axs), ncols=4)
     style.title(fig, f"{TITLE}: Growth of the Time")
+    style.save(pdf, fig)
+
+    steps = {}
+    for r in meas:
+        if int(r["K"]) == 1 and num(r["steps"]) > 0 and num(r["n_gates"]) > 0:
+            steps.setdefault(r["method"], []).append(num(r["steps"]) / num(r["n_gates"]))
+    ms = {r["method"]: 1e3 * num(r["seconds_per_gate"]) for r in comp if r["sweep"] == "p" and int(r["p"]) == 83}
+    names = sorted((m for m in steps if m in ms), key=lambda m: np.median(steps[m]))
+    y = np.arange(len(names))
+    fig, axs = plt.subplots(1, 2, figsize=style.size(style.DOUBLE, 0.55), sharey=True, layout="constrained")
+    for ax, v, xl, log in ((axs[0], [np.median(steps[m]) for m in names], "Forward-Selection Steps per Gate", True),
+                           (axs[1], [ms[m] / np.median(steps[m]) for m in names], "Time per Step [ms]", False)):
+        ax.barh(y, v, color=[LOOK.get(m, (style.NORM,))[0] for m in names], height=0.65)
+        for i, x in enumerate(v):
+            ax.text(x * (1.12 if log else 1.02), i, f"{x:.3g}", va="center", fontsize=6.5)
+        if log:
+            ax.set_xscale("log")
+        ax.set_xlim(right=max(v) * (8 if log else 1.25))
+        ax.set_xlabel(xl)
+    axs[0].set_yticks(y, [lab(m) for m in names])
+    axs[0].invert_yaxis()
+    style.title(axs[0], "Steps (Measured S2, $K = 1$)")
+    style.title(axs[1], "Time per Step (One Core)")
+    style.title(fig, f"{TITLE}: Work per Range Gate")
     style.save(pdf, fig)
 
 

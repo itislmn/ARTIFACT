@@ -19,8 +19,8 @@ pip install -r requirements.txt
 | `python -m readers.train` | Draws the training characters and trains both readers. |
 | `python check_system.py` | Checks camera and radar (pass or fail). |
 | `python align.py solve` | Aligns radar and camera from reflector points. |
-| `python read_text.py --take text_1 --truth ARTIFACT --record` | Reads live. |
-| `python light_experiment.py --take light_1 --truth ARTIFACT --record` | Reads live while a lamp is switched on and off. |
+| `python read_text.py --take <take> --truth <text> --record` | Reads live. |
+| `python light_experiment.py --take <take> --truth <text> --record` | Reads live while a lamp is switched on and off. |
 
 - **Alignment**: a radar point projects to the pixel $u = c + f\,x\,(1 + k_1 r^2)$.
 - **MetricSight**: the radar range sets the image scale $f/R$, so every board is read at 1.5 mm per pixel; letters by
@@ -34,9 +34,10 @@ pip install -r requirements.txt
 
 1. Check the hardware: `python check_system.py`
 2. Record the empty room: `python radar_setup.py background`
-3. Align radar and camera on corner reflectors: `python align.py take align_1 --target-xy "0.50:-0.20:CR"`, then
+3. Align radar and camera on corner reflectors: `python align.py take <take> --target-xy "x:y:label"`, then
    `python align.py solve`
-4. Read, without and with a lamp: `python read_text.py ...`, `python light_experiment.py ...`
+4. Read, without and with a lamp: `python read_text.py --take <take> --truth <text> --record`, then
+   `python light_experiment.py --take <take> --truth <text> --record`
 5. Compute everything: `python run_all.py`
 
 ## Folder Structure

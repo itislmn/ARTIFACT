@@ -1,6 +1,7 @@
 """
 run_all.py - the whole experiment in one command: dataset, every method on the measured session and the
-simulations, the FDR-control study, the guarantee study, the range estimators, the complexity, tables and every figure;
+simulations, the FDR-control study, the guarantee study, the range estimators, the complexity, Model-X under its own
+assumption, tables and every figure;
 recomputes only missing results.
 
     python run_all.py            (python run_all.py --again recomputes everything, about 3 h)
@@ -39,6 +40,8 @@ def main():
         step("complexity.py")
     if again or not (CACHE / "model_order.csv").exists():
         step("model_order.py")
+    if again or not (CACHE / "model_x_check.csv").exists():
+        step("model_x_check.py", "--workers", "1")
     step("tables.py")
     step("plots.py")
 

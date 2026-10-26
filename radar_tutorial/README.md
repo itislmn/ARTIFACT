@@ -16,11 +16,11 @@ pip install -r requirements.txt
 | Command | What it does |
 | :--- | :--- |
 | `python run_all.py` | Runs every step offline on the recordings and synthetic targets into `output/`. |
-| `python check_setup.py --cli COM4` | Checks ports, CLI, network and the DCA1000 (pass or fail). |
-| `python capture_raw.py --cli COM4 --name corner_1m` | Records raw ADC frames through the DCA1000. |
-| `python live_raw.py --cli COM4` | Live range-azimuth map and point cloud from the raw stream. |
-| `python pointcloud.py --cli COM4 --data COM5` | The chip's own point cloud over UART. |
-| `python probe_cli.py --cli COM4` | Shows which form of a CLI command the firmware accepts. |
+| `python check_setup.py --cli <port>` | Checks ports, CLI, network and the DCA1000 (pass or fail). |
+| `python capture_raw.py --cli <port> --name <take>` | Records raw ADC frames through the DCA1000. |
+| `python live_raw.py --cli <port>` | Live range-azimuth map and point cloud from the raw stream. |
+| `python pointcloud.py --cli <port> --data <data-port>` | The chip's own point cloud over UART. |
+| `python probe_cli.py --cli <port>` | Shows which form of a CLI command the firmware accepts. |
 
 - **Configuration**: the `.cfg` lines set the chirp, so the range resolution is $\Delta R = c/(2B)$.
 - **Raw samples**: the ADC samples the beat $x(t) = A\cos(2\pi f_b t + \varphi)$ with $f_b = 2SR/c$.
@@ -30,9 +30,9 @@ pip install -r requirements.txt
 
 ## How to Measure
 
-1. Flash TI's out-of-box demo onto the AWR2944P EVM, then check it: `python check_setup.py --cli COM4`
-2. Point cloud only: `python pointcloud.py --cli COM4 --data COM5`
-3. Raw data with the DCA1000: `python capture_raw.py --cli COM4 --name corner_1m`
+1. Flash TI's out-of-box demo onto the AWR2944P EVM, then check it: `python check_setup.py --cli <port>`
+2. Point cloud only: `python pointcloud.py --cli <port> --data <data-port>`
+3. Raw data with the DCA1000: `python capture_raw.py --cli <port> --name <take>`
 4. Compute everything: `python run_all.py`
 
 ## Folder Structure

@@ -15,4 +15,4 @@ pattern_measurements/data/*.bin
 !**/output/figures/
 **/output/figures/*
 !**/output/figures/readme.svg
-!computer_vision/output/figures/training_data.pdf
+

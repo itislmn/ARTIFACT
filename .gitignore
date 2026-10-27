@@ -15,4 +15,6 @@ pattern_measurements/data/*.bin
 !**/output/figures/
 **/output/figures/*
 !**/output/figures/readme.svg
+thesis/img_thesis
+
 

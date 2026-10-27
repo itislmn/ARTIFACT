@@ -1,8 +1,8 @@
 """
 plots.py - the thesis figures of the experiment as PDFs (ARTIFACT-TeX): the scene in space and time, tracking, scene
 understanding, motion and decisions, camera (light and reading), classification, the system (chirps, blind time, run
-time, latency) of the method, its comparison with the baselines on the same recordings, the DoA study and the README
-picture.
+time, latency) of the method, the spatial envelope of camera and radar, its comparison with the baselines on the same
+recordings, the DoA study and the README picture.
 
     python plots.py          (redraws from output/cache/results.pkl; python run_all.py computes everything)
 """
@@ -858,8 +858,95 @@ def doa(res, pdf):
     style.save(pdf, fig)
 
 
+def _box3d(ax, lo, hi, **kw):
+    x, y, z = zip(lo, hi)
+    for a, b in ((0, 1), (1, 3), (3, 2), (2, 0)):
+        c = [(x[i & 1], y[i >> 1]) for i in (a, b)]
+        for zz in z:
+            ax.plot([c[0][0], c[1][0]], [c[0][1], c[1][1]], [zz, zz], **kw)
+        ax.plot([c[0][0]] * 2, [c[0][1]] * 2, z, **kw)
+
+
+def envelope(res, pdf):
+    from envelope import GRID, SCALES, run_envelope
+    for run in res["tracks"]:
+        e = run_envelope(run)
+        if e is None or e["image"] is None:
+            continue
+        fig = plt.figure(figsize=(DOUBLE, 5.4), layout="constrained")
+        gs = fig.add_gridspec(3, 2, height_ratios=[1, 1, 0.75], width_ratios=[1, 1.15])
+        W, H = e["size_wh"]
+        ax = fig.add_subplot(gs[0, 0])
+        ax.imshow(e["image"])
+        if len(e["uv"]):
+            ax.plot(e["uv"][:, 0], e["uv"][:, 1], "o", mfc="none", color=ACCENT, ms=3.5, mew=0.8)
+        ax.set_xlim(0, W)
+        ax.set_ylim(H, 0)
+        ax.axis("off")
+        title(ax, f"Camera with the Radar Points, $t$ = {e['t_show']:.1f} s")
+        ax = fig.add_subplot(gs[1, 0])
+        ax.imshow(e["image"].mean(axis=2), cmap="gray", alpha=0.35, vmin=0, vmax=255)
+        E = e["gist"]
+        a = np.r_[np.arange(2 * E.shape[1]) * np.pi / E.shape[1], 0.0]
+        half = 0.45 * min(W, H) / GRID
+        top = max(E[:2].sum(axis=0).max(), E[2:].sum(axis=0).max())
+        for by in range(GRID):
+            for bx in range(GRID):
+                cx, cy = (bx + 0.5) * W / GRID, (by + 0.5) * H / GRID
+                for sl, c in ((slice(2, None), PRIMARY), (slice(0, 2), SERIES[2])):
+                    r = E[sl, :, by, bx].sum(axis=0) / top * half
+                    r = np.r_[r, r, r[0]]
+                    ax.plot(cx + r * np.cos(a), cy - r * np.sin(a), color=c, lw=0.9)
+        ax.set_xlim(0, W)
+        ax.set_ylim(H, 0)
+        ax.axis("off")
+        title(ax, "Spatial Envelope: Energy per Orientation")
+        ax = fig.add_subplot(gs[0:2, 1], projection="3d")
+        p = e["points"]
+        p = p[(p[:, 0] > -0.1) & (p[:, 0] < 3.0) & (np.abs(p[:, 1]) < 1.6) & (np.abs(p[:, 2]) < 0.8)]
+        lit = np.isfinite(p[:, 4])
+        ax.scatter(p[~lit, 0], p[~lit, 1], p[~lit, 2], s=1.2, color=MUTED, alpha=0.4, depthshade=False, lw=0)
+        ax.scatter(p[lit, 0], p[lit, 1], p[lit, 2], s=2.5, c=p[lit, 4:], depthshade=False, lw=0)
+        for q in e["truth"]:
+            if q.kind != "person":
+                _box3d(ax, q.lo, q.hi, color=GOAL, lw=0.6, ls="-.")
+        ax.plot(e["pose"][:, 0], e["pose"][:, 1], np.zeros(len(e["pose"])), color=NORM, lw=2.0)
+        ax.set_xlim(-0.1, 3.0)
+        ax.set_ylim(1.6, -1.6)
+        ax.set_zlim(-0.8, 0.8)
+        ax.set_xlabel("Forward $x$ (m)", labelpad=-2)
+        ax.set_ylabel("Sideways $y$ (m)", labelpad=-2)
+        ax.set_zlabel("Up $z$ (m)", labelpad=-4)
+        ax.view_init(elev=24, azim=-128)
+        ax.set_box_aspect((3.1, 3.2, 1.6), zoom=1.1)
+        _pane(ax)
+        title(ax, "Every Radar Point of the Run in Camera Colour")
+        for k, (data, names, cols) in enumerate(((e["camera"], ("Horizontal over Vertical Energy (dB)", "Fine-Scale Share"),
+                                                  "Camera"),
+                                                 (e["radar"], ("Free Share of the View", "Median Range (m)"), "Radar"))):
+            ax = fig.add_subplot(gs[2, k])
+            tw = ax.twinx()
+            for axis, col, c in ((ax, 1, SERIES[4]), (tw, 2, SERIES[5])):
+                y = data[:, col]
+                w = 1 if cols == "Camera" else 9
+                ys = np.convolve(np.nan_to_num(y, nan=np.nanmedian(y)), np.ones(w) / w, mode="same")
+                axis.plot(data[:, 0], ys, color=c, lw=0.9)
+                axis.set_ylabel(names[col - 1], color=c)
+            ax.axvline(e["t_show"], color=INK, ls=":", lw=0.8)
+            ax.set_xlabel("Time (s)")
+            title(ax, f"{cols} Envelope along the Run")
+        h = [Line2D([], [], marker="o", mfc="none", color=ACCENT, ls="none", label="radar point"),
+             Line2D([], [], color=PRIMARY, lw=0.9, label=f"coarse scales ({SCALES[2]:g}, {SCALES[3]:g} cycles/px)"),
+             Line2D([], [], color=SERIES[2], lw=0.9, label=f"fine scales ({SCALES[0]:g}, {SCALES[1]:g} cycles/px)"),
+             Line2D([], [], marker=".", ls="none", color=MUTED, label="outside the camera's view"),
+             Line2D([], [], color=GOAL, ls="-.", lw=0.6, label="measured object"), Line2D([], [], color=NORM, lw=2, label="rail")]
+        fig.legend(handles=h, loc="outside lower center", ncols=3)
+        title(fig, f"{_short(run)}: Spatial Envelope of Camera and Radar")
+        style.save(pdf, fig)
+
+
 FIGS = (("scene", scene), ("tracking", tracking), ("understanding", understanding), ("motion", motion),
-        ("camera", camera), ("classification", classification), ("system", system))
+        ("camera", camera), ("classification", classification), ("system", system), ("envelope", envelope))
 
 
 def draw_group(res, folder):

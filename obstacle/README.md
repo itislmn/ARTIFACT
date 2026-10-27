@@ -47,6 +47,7 @@ obstacle/
 ├── scene_metrics.py  metrics.py  tracking, Scene PQ, FDR, decisions, intervals
 ├── doa_study.py  light_replay.py the DoA methods and the light monitor on the recordings
 ├── tables.py  plots.py           tables and figures
+├── envelope.py                   the spatial envelope of camera and radar
 ├── experiment.py  annotate.py    the live experiment and its event ground truth
 ├── config.toml                   every setting
 ├── methods/                      detection, tracking, world model, planner, camera, classical chain

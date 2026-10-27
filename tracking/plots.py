@@ -1,7 +1,7 @@
 """
 plots.py - the thesis figures of the experiment as PDFs in output/figures/ (ARTIFACT-TeX): scene, tracking (space-time
-maps, HOTA, identities, accuracy), information, prediction regions, detection, classification, run time, and the
-README picture.
+maps, HOTA, identities, accuracy), information, prediction regions, detection, classification, run time, the chirps,
+and the README picture.
 
     python plots.py          (redraws from output/cache/results.pkl; python run_all.py computes everything)
 """
@@ -671,6 +671,53 @@ def detection(res, pdf):
     h = [Patch(color=TAKE_COLOR[k], label=v) for k, v in dataset.TAKES.items()]
     fig.legend(handles=h, loc="outside lower center", ncols=2)
     style.save(pdf, fig)
+    range_doppler(pdf)
+
+
+def range_doppler(pdf, take="run_1"):
+    import json
+    from hardware.recording import open_live_take
+    from methods.range_doppler import FrontEnd
+    log = paths.RESULTS / "replay" / take / "frames.jsonl"
+    if not log.exists() or not (dataset.folder(take) / "radar_raw.bin").exists():
+        return
+    recs = [json.loads(line) for line in open(log, encoding="utf-8")]
+    pairs = []
+    for a, b in zip(recs[:-1], recs[1:]):
+        if a["waveform"] == "search" and b["waveform"] == "fast":
+            conf = {tr["id"] for tr in b["tracks"] if tr["status"] == "confirmed"}
+            v = [abs(d["v_mps"]) for d in b["dets"] if d["track"] in conf and d["label"] in ("core", "part")]
+            if v:
+                pairs.append((max(v), a, b))
+    _, a, b = max(pairs, key=lambda p: p[0])
+    cfg = paths.load_config()
+    lib, refs, n, get, times, _ = open_live_take(dataset.folder(take), cfg)
+    fig, axs = plt.subplots(1, 2, figsize=(DOUBLE, 2.8), layout="constrained", sharey=True)
+    for ax, rec in zip(axs, (a, b)):
+        wf, ref = lib[rec["waveform"]], refs.get(rec["waveform"]) or refs.get("*") or {}
+        fe = FrontEnd(wf, cfg["radar"]["r_min_m"], cfg["radar"]["r_max_m"], ref.get("cal"), ref.get("bg"))
+        rd = fe.process(get(int(np.argmin(np.abs(times - rec["t"])))))
+        K = fe.K
+        f = rec["doppler_sign"] * (np.arange(K) - K // 2) / (K * wf.loop_s) / 1e3
+        P = 10 * np.log10(rd.P[fe.roi] / np.median(rd.P[fe.roi]))
+        im = ax.pcolormesh(f, fe.range_m[fe.roi], P, cmap=SEQUENTIAL, vmin=0, vmax=40, shading="nearest", rasterized=True)
+        for d in rec["dets"]:
+            k, dd = d["cell"]
+            ax.plot(f[dd], fe.range_m[k], "o", mfc="none", color=ACCENT, ms=5, mew=0.9)
+        if rec is b:
+            fs = 1 / (2 * lib[a["waveform"]].loop_s) / 1e3
+            for s in (-1, 1):
+                ax.axvline(s * fs, color=INK, ls="--", lw=0.8)
+        ax.set_xlabel("Doppler Frequency $f_D$ (kHz)")
+        title(ax, f"{rec['waveform'].capitalize()} Look, $f_{{D,\\max}}$ = {1 / (2 * wf.loop_s) / 1e3:.2f} kHz, "
+                  f"$\\Delta f_D$ = {1 / (K * wf.loop_s):.0f} Hz")
+    axs[0].set_ylabel("Range (m)")
+    fig.colorbar(im, ax=axs, shrink=0.9, label="Power over the Noise Floor (dB)")
+    h = [Line2D([], [], marker="o", mfc="none", color=ACCENT, ls="none", label="detection (e-BH)"),
+         Line2D([], [], color=INK, ls="--", lw=0.8, label=r"$\pm f_{D,\max}$, search look")]
+    fig.legend(handles=h, loc="outside lower center", ncols=2)
+    title(fig, f"Range-Doppler at $t$ = {a['t']:.1f} s: Search Look and the Fast Look {1e3 * (b['t'] - a['t']):.0f} ms Later")
+    style.save(pdf, fig)
 
 
 def _matrix(ax, true, pred, rows, cols, name):
@@ -862,8 +909,75 @@ def policies(res, pdf):
     style.save(pdf, fig)
 
 
+CHIRP_COLOR = {"search": PRIMARY, "fast": SERIES[2]}
+
+
+def _tx_order(wf):
+    masks = [int(line.split()[8]) for line in wf.path.read_text(encoding="utf-8").splitlines() if line.startswith("chirpCfg")]
+    return [m.bit_length() - 1 for m in masks]
+
+
+def chirps(res, pdf):
+    from methods.radar_model import library_for
+    lib = library_for(paths.load_config())
+    color = lambda w: CHIRP_COLOR.get(w.name, SERIES[3])
+    fig = plt.figure(figsize=(DOUBLE, 4.6), layout="constrained")
+    gs = fig.add_gridspec(2, 2, height_ratios=[0.55, 2], width_ratios=[1.6, 1])
+    ax = fig.add_subplot(gs[0, :])
+    frame = next(iter(lib.values())).frame_ms
+    for w in lib.values():
+        active = 1e3 * w.active_s
+        end = next((v.start_ms for v in lib.values() if v.start_ms > w.start_ms), frame)
+        ax.barh(0, active, left=w.start_ms, height=0.6, color=color(w))
+        ax.barh(0, end - w.start_ms - active, left=w.start_ms + active, height=0.6, color=MUTED, alpha=0.25)
+        ax.text(w.start_ms + active / 2, 0, f"{w.name}: {w.cfg.n_loops} loops, {active:.1f} ms", ha="center", va="center",
+                color="white", fontsize=7)
+    ax.set_xlim(0, frame)
+    ax.set_yticks([])
+    ax.set_xlabel("Time in the Frame (ms)")
+    title(ax, f"One Advanced Frame, {frame:g} ms: Every Chirp Preloaded as a Sub-Frame")
+    sub = gs[1, 0].subgridspec(len(lib), 1, hspace=0.08)
+    T = max(w.loop_s for w in lib.values()) * 1e6
+    axs = [fig.add_subplot(sub[i]) for i in range(len(lib))]
+    for ax, w in zip(axs, lib.values()):
+        c = w.cfg
+        f0, S = c.f0_hz / 1e9, c.slope_hz_per_s / 1e9 / 1e6
+        idle, ramp, adc0, adc = 1e6 * c.idle_s, 1e6 * c.ramp_end_s, 1e6 * c.adc_start_s, 1e6 * c.n_samples / c.fs_hz
+        for k, tx in enumerate(_tx_order(w)):
+            t0 = k * (idle + ramp)
+            ax.plot([t0, t0 + idle, t0 + idle + ramp, t0 + idle + ramp], [f0, f0, f0 + S * ramp, f0], color=color(w), lw=0.9)
+            a = t0 + idle + adc0
+            ax.plot([a, a + adc], [f0 + S * adc0, f0 + S * (adc0 + adc)], color=color(w), lw=2.6, solid_capstyle="butt")
+            ax.text(t0 + idle + ramp / 2, f0 + S * ramp + 0.1, f"TX{tx}", ha="center", va="bottom", fontsize=6.5)
+        ax.axvspan(1e6 * w.loop_s, T, color=MUTED, alpha=0.15, lw=0)
+        ax.set_xlim(0, T)
+        ax.set_ylim(f0 - 0.2, f0 + S * ramp + 0.6)
+        ax.set_ylabel("$f$ (GHz)")
+        title(ax, f"{w.name.capitalize()}: Idle {idle:g} µs + Ramp {ramp:g} µs, Loop $T_c$ = {1e6 * w.loop_s:.0f} µs")
+    for ax in axs[:-1]:
+        ax.tick_params(labelbottom=False)
+    axs[-1].set_xlabel("Time in One Loop (µs)")
+    ax = fig.add_subplot(gs[1, 1])
+    for i, w in enumerate(lib.values()):
+        ax.barh(i, 2 * w.v_max, left=-w.v_max, height=0.4, color=color(w))
+        ax.text(0, i, f"$\\Delta v$ = {100 * w.dv:.1f} cm/s", ha="center", va="center", color="white", fontsize=7)
+        ax.text(w.v_max, i - 0.32, f"±{w.v_max:.2f} m/s", ha="right", va="bottom", fontsize=6.5)
+    ax.set_yticks(range(len(lib)), [w.name for w in lib.values()])
+    ax.set_ylim(-0.7, len(lib) - 0.4)
+    ax.invert_yaxis()
+    ax.set_xlabel("Radial Velocity (m/s)")
+    w0 = next(iter(lib.values()))
+    title(ax, f"Velocities Measured; Same $\\Delta R$ = {100 * w0.range_res_m:.1f} cm")
+    h = [Line2D([], [], color=INK, lw=0.9, label="chirp (frequency ramp)"), Line2D([], [], color=INK, lw=2.6, label="ADC sampling"),
+         Patch(color=MUTED, alpha=0.25, label="no chirps")]
+    fig.legend(handles=h, loc="outside lower center", ncols=3)
+    title(fig, "The Chirps of the Cognitive Design")
+    style.save(pdf, fig)
+
+
 FIGS = (("scene", scene), ("tracking", tracking), ("information", information), ("regions", regions),
-        ("detection", detection), ("classification", classification), ("timing", timing), ("policies", policies))
+        ("detection", detection), ("classification", classification), ("timing", timing), ("policies", policies),
+        ("chirps", chirps))
 
 
 def readme_figure(res, path):

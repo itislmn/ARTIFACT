@@ -1,6 +1,7 @@
 """
 measured.py - the figures of the measured session S2: set-up, range-azimuth-elevation maps, spatial spectra, FDR, TPR
-and RMSE vs. the number of chirps and vs. SNR (with the Cramer-Rao bound), FDR control, range estimation, all methods,
+and RMSE vs. the number of chirps and vs. SNR (with the Cramer-Rao bound), FDR control, range estimation (precision and
+resolution too), all methods,
 and the fewest chirps with which each method controls the FDR.
 
     from estimation.plotting import measured
@@ -14,8 +15,10 @@ from estimation import dataset
 from estimation.core.truth import EL_SIGN
 from estimation.core.metrics import crb_theta_deg
 from estimation.methods import doa_methods
+from estimation.methods.range_czt import N_POINTS
 from estimation.plotting.common import (LOOK, TRUTH, TRUTH_LINE, all_methods, alpha_diagonal, by_k, dodge, frame_result,
                                         guarantee_key, lab, line, metric_vs, needed_k, num, overview, range_azimuth, tt)
+from estimation.ranging import crb_range_m
 from visualization import style
 
 TITLE = "Measured (S2)"
@@ -282,6 +285,47 @@ def range_estimation(pdf, all_rows):
     style.title(fig, f"{TITLE}: Range against the Tape Measure")
     style.save(pdf, fig)
     range_offsets(pdf, all_rows)
+
+
+def range_precision(pdf, rows, resolution, dataset_rows, cfg):
+    rows = [r for r in rows if r["role"] == "evaluated"]
+    snr_of = {}
+    for r in dataset_rows:
+        snr_of.setdefault((r["take"], int(r["reflector"])), []).append(num(r["snr_db"]))
+    items = sorted({(r["take"], int(r["reflector"])) for r in rows})
+    looks = {"fft": ("FFT (Bin Centre)", style.MUTED, "s"), "parabolic": ("FFT + Parabola", style.SERIES[2], "^"),
+             "czt": ("CZT Zoom", style.PRIMARY, "o")}
+    fig, axs = plt.subplots(1, 2, figsize=style.size(style.DOUBLE, 0.42), layout="constrained")
+    snrs = []
+    for K in (1, 128):
+        for m, (name, c, mk) in looks.items():
+            x = [np.mean(snr_of[it]) - 10 * np.log10(128 / K) for it in items]
+            y = [10 * np.std([num(r["error_cm"]) for r in rows if (r["take"], int(r["reflector"])) == it and r["method"] == m
+                              and int(r["K"]) == K]) for it in items]
+            axs[0].plot(x, y, color=c, marker=mk, ms=4.5, ls="none", mfc=c if K == 128 else "white",
+                        label=name if K == 128 else None)
+            snrs += x
+    s = np.linspace(min(snrs) - 1, max(snrs) + 1, 60)
+    axs[0].plot(s, 1e3 * crb_range_m(s, cfg, cfg.n_virt), color=style.NORM, ls=(0, (1, 1)), lw=1.0, label=r"Cram\'er--Rao Bound")
+    axs[0].axhline(1e3 * 2 * cfg.range_res_m / (N_POINTS - 1) / np.sqrt(12), color=style.MUTED, lw=0.8, ls="-.",
+                   label=r"CZT Step$/\sqrt{12}$")
+    axs[0].plot([], [], color=style.INK, marker="o", ms=4.5, ls="none", label="$K = 128$")
+    axs[0].plot([], [], color=style.INK, marker="o", ms=4.5, ls="none", mfc="white", label="$K = 1$")
+    axs[0].set_xlabel("SNR of the Reflector per Channel [dB]")
+    axs[0].set_ylabel(r"Std of $\hat{R}$ over 20 Frames [mm]")
+    style.title(axs[0], "Precision, Every Reflector")
+    seps = sorted({(r["take"], r["pair"]) for r in resolution})
+    for k, (m, (name, c, mk)) in enumerate(looks.items()):
+        sel = [[r for r in resolution if (r["take"], r["pair"]) == sp and r["method"] == m and int(r["K"]) == 128] for sp in seps]
+        axs[1].plot([num(v[0]["separation_cells"]) + (k - 1) * 0.06 for v in sel], [np.mean([int(r["resolved"]) for r in v]) for v in sel],
+                    color=c, marker=mk, ms=4.5, ls="none")
+    axs[1].set_ylim(-0.05, 1.05)
+    axs[1].set_xlabel(r"Spacing of Two Reflectors by Tape [Range Cells $\Delta R$]")
+    axs[1].set_ylabel("Share Resolved")
+    style.title(axs[1], "Resolution, Pairs in the Takes, $K = 128$")
+    style.legend_below(fig, axs[:1], ncols=4)
+    style.title(fig, f"{TITLE}: Range Estimators")
+    style.save(pdf, fig)
 
 
 def range_offsets(pdf, rows):

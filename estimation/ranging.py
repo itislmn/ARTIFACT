@@ -1,7 +1,8 @@
 """
 ranging.py - the three range estimators (FFT bin centre, FFT with a parabola through the peak, CZT zoom) on the measured
-session (every reflector in every frame against the tape, the calibration take for the offset) and in simulation (precision vs. SNR against the Cramer-Rao
-bound, resolution of two equal reflectors vs. their spacing); writes output/cache/range_*.csv.
+session (every reflector in every frame against the tape, the calibration take for the offset, every pair of reflectors
+closer than 3.5 range cells resolved or not, judged by the spacing of the two peaks) and in simulation (precision vs. SNR against the Cramer-Rao bound, resolution
+of two equal reflectors vs. their spacing); writes output/cache/range_*.csv.
 
     python ranging.py --workers 3       (--only resolution: the rest is kept)
 """
@@ -36,6 +37,7 @@ SEPARATIONS = [0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 2.5, 3.0]
 RESOLUTION_SNR = 30.0
 RESOLUTION_TRIALS = 200
 SESSION_K = [1, 128]
+PAIR_CELLS = 3.5
 SEED = 20261018
 
 
@@ -80,6 +82,27 @@ def measured_rows(session):
     return rows
 
 
+def measured_resolution_rows(session):
+    cfg, bg = session.cfg, session.background
+    rows = []
+    for t in session.evaluated:
+        r = t["truth"][:, 0]
+        pairs = [(i, j) for i in range(r.size) for j in range(i + 1, r.size) if abs(r[j] - r[i]) < PAIR_CELLS * cfg.range_res_m]
+        if not pairs:
+            continue
+        n, get = open_recording(t["path"], cfg)
+        for f in range(n):
+            frame = np.asarray(get(f), float)
+            for K in SESSION_K:
+                x = frame[:, :K].mean(axis=1) - (bg["adc"] if bg is not None else 0.0)
+                for i, j in pairs:
+                    truths = np.sort(r[[i, j]])
+                    for m, ok in resolutions(x, cfg, truths, spacing=True).items():
+                        rows.append({"take": t["name"], "pair": f"{i}-{j}", "frame": f, "K": K, "method": m,
+                                     "separation_cells": (truths[1] - truths[0]) / cfg.range_res_m, "resolved": int(ok)})
+    return rows
+
+
 def precision_task(task):
     snr, trial = task
     cfg = RadarConfig.from_cfg(dataset.CFG)
@@ -95,13 +118,15 @@ def local_maxima(P):
     return [i for i in range(1, P.size - 1) if P[i] > P[i - 1] and P[i] >= P[i + 1]]
 
 
-def resolved(r_axis, P, truths, sep_m, parabola=False):
+def resolved(r_axis, P, truths, sep_m, parabola=False, spacing=False):
     w = (r_axis >= truths.min() - 1.5 * sep_m) & (r_axis <= truths.max() + 1.5 * sep_m)
     ra, Pw = r_axis[w], P[w]
     peaks = sorted(local_maxima(Pw), key=lambda i: -Pw[i])[:2]
     if len(peaks) < 2:
         return False
     est = np.sort([refine_peak(ra, 10 * np.log10(Pw + 1e-30), i) if parabola else ra[i] for i in peaks])
+    if spacing:
+        return bool(abs(est[1] - est[0] - sep_m) < 0.5 * sep_m)
     return bool(np.all(np.abs(est - np.sort(truths)) < 0.5 * sep_m))
 
 
@@ -114,12 +139,17 @@ def resolution_task(task):
     refl = [Reflector(r1, 0.0, RESOLUTION_SNR, float(rng.uniform(0, 2 * np.pi))),
             Reflector(r1 + sep_m, 0.0, RESOLUTION_SNR, float(rng.uniform(0, 2 * np.pi)))]
     x = render_frame(Scene("multi", RESOLUTION_SNR, refl), cfg, rng).astype(float).mean(axis=1)
-    truths = np.array([r1, r1 + sep_m])
+    return [{"separation_cells": sep, "trial": trial, "method": m, "resolved": int(ok)}
+            for m, ok in resolutions(x, cfg, np.array([r1, r1 + sep_m])).items()]
+
+
+def resolutions(x, cfg, truths, spacing=False):
+    sep_m = truths[1] - truths[0]
     r_fft, P_fft = range_fft.range_profile(x, cfg)
-    r_czt, P_czt = range_czt.zoom_profile(x, cfg, r1 - 2 * cfg.range_res_m - sep_m, r1 + 2 * cfg.range_res_m + 2 * sep_m,
-                                          n_points=1025)
-    return [{"separation_cells": sep, "trial": trial, "method": m, "resolved": int(resolved(ra, P, truths, sep_m, m == "parabolic"))}
-            for m, (ra, P) in (("fft", (r_fft, P_fft)), ("parabolic", (r_fft, P_fft)), ("czt", (r_czt, P_czt)))]
+    r_czt, P_czt = range_czt.zoom_profile(x, cfg, truths[0] - 2 * cfg.range_res_m - sep_m,
+                                          truths[1] + 2 * cfg.range_res_m + sep_m, n_points=1025)
+    return {m: resolved(ra, P, truths, sep_m, m == "parabolic", spacing)
+            for m, (ra, P) in (("fft", (r_fft, P_fft)), ("parabolic", (r_fft, P_fft)), ("czt", (r_czt, P_czt)))}
 
 
 def pool_rows(tasks, fn, workers, label):
@@ -139,7 +169,9 @@ def main():
                     choices=["measured", "precision", "resolution"])
     a = ap.parse_args()
     if "measured" in a.only:
-        dataset.write_csv(CACHE / "range_measured.csv", measured_rows(dataset.load(dataset.MEASURED)))
+        session = dataset.load(dataset.MEASURED)
+        dataset.write_csv(CACHE / "range_measured.csv", measured_rows(session))
+        dataset.write_csv(CACHE / "range_resolution_measured.csv", measured_resolution_rows(session))
         print("  range measured: done", flush=True)
     if "precision" in a.only:
         dataset.write_csv(CACHE / "range_precision.csv",

@@ -34,7 +34,7 @@ def main():
         step("fdr_control.py")
     if again or not (CACHE / "guarantee.csv").exists():
         step("guarantee.py")
-    if again or not (CACHE / "range_resolution.csv").exists():
+    if again or not all((CACHE / f).exists() for f in ("range_resolution.csv", "range_resolution_measured.csv")):
         step("ranging.py")
     if again or not (CACHE / "complexity.csv").exists():
         step("complexity.py")

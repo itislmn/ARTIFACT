@@ -22,12 +22,12 @@ pip install -r requirements.txt
 | `python read_text.py --take <take> --truth <text> --record` | Reads live. |
 | `python light_experiment.py --take <take> --truth <text> --record` | Reads live while a lamp is switched on and off. |
 
-- **Alignment**: a radar point projects to the pixel $u = c + f\,x\,(1 + k_1 r^2)$.
-- **MetricSight**: the radar range sets the image scale $f/R$, so every board is read at 1.5 mm per pixel; letters by
+- **Alignment**: a radar point projects to the camera pixel using a perspective camera model.
+- **MetricSight**: the radar range sets the image scale, so every board is read at 1.5 mm per pixel; letters by
   gradient histograms and ridge regression.
 - **Training data**: 18,000 distorted characters (A–Z, 0–9) from 27 fonts, drawn fresh with fixed seeds, the same
   for both readers; 3,600 characters from 3 unseen fonts test them (`output/figures/training_data.pdf`).
-- **Glare removal**: the radar object behind the clipped image area is the lamp; its veil $L(\rho) = b + a\rho^{-p}$ is
+- **Glare removal**: the radar object behind the clipped image area is the lamp; its veil is
   fitted around it and subtracted.
 
 ## How to Measure

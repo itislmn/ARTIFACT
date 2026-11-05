@@ -18,14 +18,13 @@ pip install -r requirements.txt
 | `python run_all.py` | Runs every method on the measured session and the simulations into `output/`. |
 | `python capture.py --cli <port> --session <session> --plan config/session_plan.json --name <take>` | Records one take with its ground truth. |
 
-One range gate of the 12-element azimuth row is a sparse regression, $\bar{\mathbf y} = \mathbf X\boldsymbol\beta +
-\boldsymbol\varepsilon$, with one column of $\mathbf X$ per grid angle; a selected angle is a detected reflector.
+One range gate of the 12-element azimuth row is a sparse regression with one column per grid angle; a selected angle is a detected reflector.
 
 - **Classical**: Bartlett, Capon, MUSIC, ESPRIT, CA- and OS-CFAR.
 - **Learned**: a small neural network trained on simulated gates.
 - **FDR control**: Benjamini–Hochberg, Benjamini–Yekutieli, Fixed-X and Model-X (Gaussian) knockoffs, T-Rex and
-  CT-Rex, each at a level $\alpha$ for $\mathrm{FDR} = \mathbb E[V/\max(R,1)]$.
-- **Infini-Rex**: the random dummies of T-Rex in closed form, $P_t = (1-\rho_t)^{n-1}$, turned into e-values for e-BH,
+  CT-Rex, each at a target FDR level α.
+- **Infini-Rex**: the random dummies of T-Rex in closed form, turned into e-values for e-BH,
   so one selection path replaces many random experiments.
 - **Range**: the FFT bin centre, the FFT with a parabola through the peak (the estimator of tracking and obstacle) and
   the CZT zoom; on the measured takes the parabola is as accurate as the zoom, which only resolves close reflectors

@@ -21,14 +21,12 @@ pip install -r requirements.txt
 | `python replay.py recordings/<session>/<take>` | Runs the method again on a recorded take, exactly as live. |
 
 - **Detection (Infini-Rex, weighted e-BH)**: e-values per range-Doppler cell and angle; weighted e-BH keeps the false
-  discovery rate at most $\alpha = 0.1$ per frame.
-- **KalmanCQR**: a Kalman filter per object whose next-look region holds the measurement with probability
-  $1 - \varepsilon = 90\,\%$, kept by $\varepsilon_{t+1} = \varepsilon_t + \gamma(\varepsilon - \mathrm{miss}_t)$.
+  discovery rate at most 10% per frame.
+- **KalmanCQR**: a Kalman filter per object whose next-look region holds the measurement with 90% probability, kept by adaptive conformal inference.
 - **M²-SRC**: material and motion of every track from the classifier of `../material_classification`; a track's
   label is the majority of its windows.
 - **Cognitive chirp choice**: every frame holds a search chirp and a fast chirp; the fast one is processed when it
-  lowers the predicted position uncertainty $U = \frac1H\int \tfrac12\log_2((2\pi e)^2\det P_\mathrm{pos})\,dt$ by
-  at least 1 bit.
+  lowers the predicted position uncertainty by at least 1 bit.
 
 The camera is the ground truth: HOTA, MOTA and IDF1 per look and live, the FDR, the coverage of the regions and the
 classification scores (`tables.tex`); the look policies are compared on the same recording.

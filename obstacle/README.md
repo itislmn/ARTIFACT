@@ -21,11 +21,11 @@ pip install -r requirements.txt
 | `python experiment.py run --take <take> --read --raw` | Runs the experiment live and records it. |
 | `python annotate.py <session>/<take>` | Marks the events of a run on its video. |
 
-- **Detection**: Infini-Rex e-values and weighted e-BH keep the FDR of every look at most $\alpha = 0.1$.
+- **Detection**: Infini-Rex e-values and weighted e-BH keep the false discovery rate of every look at most 10%.
 - **Tracking and classes**: the tracker, KalmanCQR and M²-SRC of `../tracking`.
-- **World model**: still obstacles as boxes, movers with conformal regions of where they can be within the response
-  time $t_\mathrm{resp}$.
-- **Planner**: wait for a mover that can reach the platform within $t_\mathrm{resp}$, step aside around obstacles, never
+- **World model**: still obstacles as boxes, movers with conformal prediction regions of where they can be within the response
+  time.
+- **Planner**: wait for a mover that can reach the platform within the response time, step aside around obstacles, never
   pass a person.
 - **Camera**: looks at the most important object, reads its text and removes the glare of a light.
 

@@ -22,11 +22,10 @@ pip install -r requirements.txt
 | `python pointcloud.py --cli <port> --data <data-port>` | The chip's own point cloud over UART. |
 | `python probe_cli.py --cli <port>` | Shows which form of a CLI command the firmware accepts. |
 
-- **Configuration**: the `.cfg` lines set the chirp, so the range resolution is $\Delta R = c/(2B)$.
-- **Raw samples**: the ADC samples the beat $x(t) = A\cos(2\pi f_b t + \varphi)$ with $f_b = 2SR/c$.
+- **Configuration**: the `.cfg` lines set the chirp, determining the range resolution.
+- **Raw samples**: the ADC samples the beat frequency at the sample rate.
 - **Radar cube**: 4 TX × 4 RX in time multiplex give 16 virtual channels, 12 of them in one azimuth row.
-- **Range, Doppler, angle**: FFTs over samples and chirps, CA-CFAR, and the angle as the peak of
-  $|\mathbf a(u)^H\mathbf y|^2$.
+- **Range, Doppler, angle**: FFTs over samples and chirps, CA-CFAR, and the angle as the peak of the steering vector response.
 
 ## How to Measure
 

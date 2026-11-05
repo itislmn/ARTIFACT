@@ -20,8 +20,7 @@ pip install -r requirements.txt
 | `python run_realtime_sensing.py --cli <port>` | Classifies live with a dashboard. |
 
 - **Features**: 7 of the motion (micro-Doppler) and 7 of the material (echo strength and shape) per 1.6 s window.
-- **M²-SRC**: a window is coded sparsely over all training windows,
-  $a^\star = \arg\min_{a \ge 0} \tfrac12\|y - Da\|_2^2 + \lambda\mathbf 1^\top a$, and gets the class that rebuilds it best;
+- **M²-SRC**: a window is coded sparsely over all training windows and gets the class that rebuilds it best;
   one head for motion, one for material.
 
 ## How to Measure

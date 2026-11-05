@@ -19,8 +19,7 @@ pip install -r requirements.txt
 | `python measure_interactive.py --cli <port> --cfg config/pattern_awr2944P.cfg --cut azimuth --step 5 --background` | Records a stepwise sweep. |
 | `python diagnose_channels.py --cli <port> --cfg config/pattern_awr2944P.cfg` | Checks every channel at boresight. |
 
-- **One reading**: the empty room subtracted, then the target's energy per channel,
-  $A_v = \sqrt{\sum_{|k-k^\star|\le1}|Y_v[k]|^2}$.
+- **One reading**: the empty room subtracted, then the target's energy per channel.
 - **Pattern**: all 16 channels in 5° bins, 0 dB at the open antenna's peak, so a radome's loss is a lower curve.
 
 ## How to Measure

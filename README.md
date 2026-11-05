@@ -15,11 +15,17 @@ be next, while every detection keeps a guaranteed bound on its false discovery r
 *Tracks of a ball and a walking person with their 90 % prediction regions, the camera reading text the radar pointed
 it to through a lamp's glare, and a platform that understands the scene in front of it.*
 
+## Hardware Setup
+
+<p align="center">
+  <img src="thesis/img_thesis/20261006_201102.jpg" alt="ARTIFACT hardware setup: 77 GHz radar with camera and isel rail" width="100%">
+</p>
+
+*The ARTIFACT system: a TI AWR2944 MIMO radar (77–81 GHz, 4 TX × 4 RX, 12 virtual channels) with a camera on a three-axis isel rail. The radar streams raw samples through a DCA1000EVM capture card to a PC, where all methods run in Python.*
+
 ## Implementation
 
-A **TI AWR2944PEVM** radar (77–81 GHz, 4 TX × 4 RX, 12 virtual channels in azimuth) streams its raw samples through a
-**TI DCA1000EVM** capture card to a PC, where every method runs in Python. A webcam and a three-axis isel rail complete
-the set-up. Every experiment reproduces its results with one command:
+Raw recordings (about 35 GB) are not part of the repository, only each experiment's README figure. Every experiment reproduces its results with one command:
 
 ```
 pip install -r requirements.txt
@@ -28,9 +34,6 @@ python <experiment>/run_all.py
 
 In the commands of the experiments, `<take>` is a name you choose for a recording, `<session>` the folder that holds
 your takes, `<port>` the radar's CLI port (e.g. COM4) and `<data-port>` its data port.
-
-The raw recordings (about 35 GB) are not part of the repository, only each experiment's README figure; `run_all.py`
-recreates every table and figure from the recordings.
 
 ## Experiments
 
@@ -45,61 +48,22 @@ recreates every table and figure from the recordings.
 | [Obstacle Experiment](obstacle) | A platform on a rail that understands the scene and decides to go on, wait or step aside. |
 
 **Radar Tutorial.** The radar's configuration sets the chirp, the chirp turns distance into a beat frequency, and FFTs
-over samples, chirps and antennas give range, speed and angle.
-
-```mermaid
-flowchart LR
-  A[.cfg] --> B[chirps] --> C[raw samples] --> D[radar cube] --> E[range, Doppler, angle] --> F[point cloud]
-```
+over samples, chirps and antennas give range, speed and angle: configuration → chirps → raw samples → radar cube → range, Doppler, angle → point cloud.
 
 **Pattern Measurements.** The radar turns past a fixed reflector; the gain of every channel over the angle is the
 antenna pattern, and a radome's loss is the difference to the open antenna.
 
-```mermaid
-flowchart LR
-  A[turn the radar] --> B[gain per channel] --> C[pattern over azimuth] --> D[radome against open antenna]
-```
+**Estimation.** One range gate is a sparse regression over a grid of angles. Infini-Rex turns the selection path into e-values, and e-BH keeps the false discovery rate (FDR) bounded: one chirp → 12 channels → selection path → e-values → false-discovery-rate control → directions.
 
-**Estimation.** One range gate is a sparse regression $\mathbf y = \mathbf X\boldsymbol\beta + \boldsymbol\varepsilon$
-over a grid of angles. Infini-Rex turns the selection path into e-values, and e-BH keeps
-$\mathrm{FDR} = \mathbb E[V/\max(R,1)] \le \alpha$.
-
-```mermaid
-flowchart LR
-  A[one chirp] --> B[12 channels] --> C[selection path] --> D[e-values] --> E[e-BH] --> F[directions, FDR ≤ α]
-```
-
-**Material Classification.** Fourteen echo features of a 1.6 s window are coded sparsely over all training windows,
-$a^\star = \arg\min_{a\ge0}\tfrac12\|y-Da\|_2^2 + \lambda\mathbf 1^\top a$; the class that rebuilds the window best wins.
-
-```mermaid
-flowchart LR
-  A[1.6 s window] --> B[14 features] --> C[sparse code] --> D[material and motion]
-```
+**Material Classification.** Fourteen echo features of a 1.6 s window are coded sparsely over all training windows; the class that rebuilds the window best wins: window → 14 features → sparse coding → material and motion.
 
 **Computer Vision.** The radar's range sets the scale of the camera image, so text is always read at the same size,
-and the radar locates a lamp so that its glare can be taken out of the picture.
+and the radar locates a lamp so that its glare can be taken out of the picture: radar object → camera crop at range → glare removed → text read.
 
-```mermaid
-flowchart LR
-  A[radar object] --> B[camera crop at its range] --> C[glare removed] --> D[text read]
-```
-
-**Tracking.** Every look is detected with FDR control, every object tracked with a region that holds its next position
-with probability $1-\varepsilon$, and the next look chosen to reduce the uncertainty most.
-
-```mermaid
-flowchart LR
-  A[look] --> B[detections, FDR ≤ α] --> C[tracks and regions] --> D[material and motion] --> E[chirp choice] --> A
-```
+**Tracking.** Every look is detected with FDR control, every object tracked with a region that holds its next position with 90 % probability, and the next look chosen to reduce the uncertainty most: look → detections (FDR controlled) → tracks and prediction regions → material and motion → cognitive chirp choice → next look.
 
 **Obstacle Experiment.** On a moving platform the tracks become a world model of obstacles and movers, and a planner
-acts on their prediction regions.
-
-```mermaid
-flowchart LR
-  A[radar and camera on the rail] --> B[obstacles and movers] --> C[prediction regions] --> D[go, wait or step aside]
-```
+acts on their prediction regions: radar and camera on rail → obstacles and movers → prediction regions → go, wait or step aside.
 
 ## Novelties
 

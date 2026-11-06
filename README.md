@@ -18,7 +18,7 @@ it to through a lamp's glare, and a platform that understands the scene in front
 ## Hardware Setup
 
 <p align="center">
-  <img src="docs/artifact_setup.jpg" alt="ARTIFACT hardware setup: 77 GHz radar with camera and isel rail" width="100%">
+  <img src="docs/artifact_setup.svg" alt="ARTIFACT hardware setup: 77 GHz radar with camera and isel rail" width="100%">
 </p>
 
 *The ARTIFACT system: a TI AWR2944 MIMO radar (77–81 GHz, 4 TX × 4 RX, 12 virtual channels) with a camera on a three-axis isel rail. The radar streams raw samples through a DCA1000EVM capture card to a PC, where all methods run in Python.*

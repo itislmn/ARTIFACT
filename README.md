@@ -25,7 +25,7 @@ it to through a lamp's glare, and a platform that understands the scene in front
 
 ## Implementation
 
-Raw recordings (about 35 GB) are not part of the repository, only each experiment's README figure. Every experiment reproduces its results with one command:
+Every experiment reproduces its results with one command:
 
 ```
 pip install -r requirements.txt
